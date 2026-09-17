@@ -10,8 +10,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        220,
-        300
+        200,
+        250
       ],
       "id": "webhook-trigger",
       "name": "Webhook Tikovia CRM Duyệt Bài"
@@ -42,8 +42,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        460,
-        300
+        440,
+        250
       ],
       "id": "if-is-facebook",
       "name": "Có Kênh Facebook Fanpage?"
@@ -73,7 +73,8 @@
             "Content": "={{ $json.body.content }}",
             "Media_URLs": "={{ $json.body.media_urls.join('\\n') }}",
             "Scheduled_Time": "={{ $json.body.scheduled_at }}",
-            "Status": "Chờ đăng"
+            "Status": "Chờ đăng",
+            "Access_Token": "={{ $json.body.channel?.access_token || '' }}"
           }
         },
         "options": {}
@@ -81,8 +82,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        720,
-        200
+        700,
+        150
       ],
       "id": "gsheet-append-queue",
       "name": "Lưu Hàng Đợi Chờ Đăng"
@@ -112,7 +113,8 @@
             "Content": "={{ $json.body.content }}",
             "Media_URLs": "={{ $json.body.media_urls.join('\\n') }}",
             "Scheduled_Time": "={{ $json.body.scheduled_at }}",
-            "Status": "Đăng thủ công"
+            "Status": "Đăng thủ công",
+            "Access_Token": ""
           }
         },
         "options": {}
@@ -120,8 +122,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        720,
-        400
+        700,
+        350
       ],
       "id": "gsheet-append-manual",
       "name": "Lưu Trữ Đăng Thủ Công"
@@ -140,8 +142,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        220,
-        650
+        200,
+        600
       ],
       "id": "schedule-checker",
       "name": "Quét Lịch Hẹn (Mỗi 5 phút)"
@@ -172,8 +174,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        460,
-        650
+        420,
+        600
       ],
       "id": "gsheet-read-pending",
       "name": "Lọc Bài Đến Giờ Đăng"
@@ -204,8 +206,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        700,
-        650
+        640,
+        600
       ],
       "id": "if-time-arrived",
       "name": "Đã Đến Giờ Hẹn?"
@@ -238,11 +240,159 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        940,
-        630
+        860,
+        580
       ],
       "id": "lock-row",
       "name": "Khóa Dòng (Đang xử lý)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-has-media",
+              "leftValue": "={{ $json.Media_URLs }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        580
+      ],
+      "id": "if-has-media",
+      "name": "Có Ảnh / Video?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{ $json.Page_ID }}/photos",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.Media_URLs.replace('FILE:', '').split('\\n')[0].trim() }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json.Content }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.Access_Token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        480
+      ],
+      "id": "fb-post-photo",
+      "name": "Đăng Bài Kèm Ảnh (FB Graph API)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{ $json.Page_ID }}/feed",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.Content }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.Access_Token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        680
+      ],
+      "id": "fb-post-text",
+      "name": "Đăng Bài Chỉ Có Chữ (FB Graph API)"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1CimQGRcQqWVvehkS9OfQ_iCH7sd88YtT8XYdbhFOCI0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Posts"
+        },
+        "matchingColumn": "Plan_ID",
+        "matchingValue": "={{ $('Khóa Dòng (Đang xử lý)').item.json.Plan_ID }}",
+        "fieldsUi": {
+          "values": [
+            {
+              "column": "Status",
+              "fieldValue": "Đã đăng"
+            },
+            {
+              "column": "Live_Post_URL",
+              "fieldValue": "=https://facebook.com/{{ $json.post_id || $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        580
+      ],
+      "id": "gsheet-update-published",
+      "name": "Cập Nhật Google Sheet: Đã Đăng"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.tikovia.vn/api/automation/callback-published",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"plan_id\": {{ $('Khóa Dòng (Đang xử lý)').item.json.Plan_ID }},\n  \"live_post_url\": \"https://facebook.com/{{ $json.post_id || $json.id }}\",\n  \"status\": \"published\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        580
+      ],
+      "id": "crm-callback",
+      "name": "Phản Hồi Link Về Tikovia CRM"
     }
   ],
   "connections": {
@@ -302,6 +452,68 @@
         [
           {
             "node": "Khóa Dòng (Đang xử lý)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Khóa Dòng (Đang xử lý)": {
+      "main": [
+        [
+          {
+            "node": "Có Ảnh / Video?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Có Ảnh / Video?": {
+      "main": [
+        [
+          {
+            "node": "Đăng Bài Kèm Ảnh (FB Graph API)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Đăng Bài Chỉ Có Chữ (FB Graph API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đăng Bài Kèm Ảnh (FB Graph API)": {
+      "main": [
+        [
+          {
+            "node": "Cập Nhật Google Sheet: Đã Đăng",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đăng Bài Chỉ Có Chữ (FB Graph API)": {
+      "main": [
+        [
+          {
+            "node": "Cập Nhật Google Sheet: Đã Đăng",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cập Nhật Google Sheet: Đã Đăng": {
+      "main": [
+        [
+          {
+            "node": "Phản Hồi Link Về Tikovia CRM",
             "type": "main",
             "index": 0
           }
