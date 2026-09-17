@@ -7,23 +7,24 @@ const router = Router();
 function parseScheduledDateTime(dateStr, timeStr) {
   if (!dateStr) return null;
   const time = timeStr && timeStr.includes(':') ? timeStr.trim() : '09:00';
-  const [hours, minutes] = time.split(':').map(n => parseInt(n, 10) || 0);
+  const [hours, minutes] = time.split(':').map(n => String(parseInt(n, 10) || 0).padStart(2, '0'));
 
   const parts = dateStr.split('/');
   if (parts.length === 3) {
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
-    const d = new Date(year, month, day, hours, minutes, 0);
-    return isNaN(d.getTime()) ? null : d.toISOString();
+    const day = String(parts[0]).padStart(2, '0');
+    const month = String(parts[1]).padStart(2, '0');
+    const year = parts[2];
+    return `${year}-${month}-${day} ${hours}:${minutes}:00`;
   }
 
   const d = new Date(dateStr);
   if (!isNaN(d.getTime())) {
-    d.setHours(hours, minutes, 0);
-    return d.toISOString();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:00`;
   }
-  return null;
+  return `${dateStr} ${hours}:${minutes}:00`;
 }
 
 function extractMediaUrls(materialText) {

@@ -12,6 +12,10 @@ const fallbackData = [
   { id: 1, date: '5/4/2026', title: 'ĐẠI TIỆC GIẢM 50% - ĂN SÁNG CHỈ TỪ 17K', desc: 'Sáng vội vã, đừng để chiếc bụng đói làm bạn mất thần thái rạng rỡ...', type: 'Text', material: '5 ảnh không gian quán & món ăn', notes: 'Nhấn mạnh giá rẻ và tốc độ phục vụ (< 80 giây)', status: 'Chờ duyệt' },
 ];
 
+const isImageUrl = (url: string) => {
+  return url.match(/\.(jpeg|jpg|gif|png|webp)($|\?)/i) != null || url.includes('/storage/v1/object/public/materials') || url.includes('drive.google.com') || url.includes('googleusercontent.com') || url.includes('/api/upload');
+};
+
 export function ContentPlan() {
   const { id: companyId } = useParams();
   const { currentRole, permissions } = useOutletContext<{ currentRole: string, permissions: string[] }>();
@@ -25,6 +29,7 @@ export function ContentPlan() {
   const [editingItem, setEditingItem] = useState<any>(null); // null means "Add New", otherwise it's the item being edited
   const [editForm, setEditForm] = useState<any>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isModalUploading, setIsModalUploading] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -376,6 +381,28 @@ export function ContentPlan() {
       console.error('Lỗi upload', err);
     } finally {
       setUploadingId(null);
+    }
+  };
+
+  const handleModalFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsModalUploading(true);
+    try {
+      let currentMaterial = editForm.material || '';
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const uploadResult = await uploadFile(file, `plan_${Date.now()}_${i}`);
+        const publicUrl = uploadResult.url;
+        currentMaterial = currentMaterial ? `${currentMaterial}\nFILE:${publicUrl}` : `FILE:${publicUrl}`;
+      }
+      setEditForm((prev: any) => ({ ...prev, material: currentMaterial }));
+    } catch (err: any) {
+      console.error('Lỗi tải ảnh lên:', err);
+      alert('Lỗi tải file: ' + (err.message || err));
+    } finally {
+      setIsModalUploading(false);
     }
   };
 
@@ -1036,24 +1063,96 @@ export function ContentPlan() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Thể loại</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Thể loại bài viết</label>
                   <select
                     className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue/50 text-gray-900 dark:text-white"
                     value={editForm.type || 'Text'}
                     onChange={e => setEditForm({ ...editForm, type: e.target.value })}
                     disabled={!permissions.includes('manage_content_plan')}
                   >
-                    <option value="Text">Text (Hình ảnh & Chữ)</option>
-                    <option value="Video">Video (Tiktok, Reels)</option>
+                    <option value="Text">Text (Hình ảnh & Bài viết)</option>
+                    <option value="Video">Video (Reels, Video ngắn)</option>
                   </select>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tư liệu cần đính kèm</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-brand-blue" />
+                      Ảnh / Video bài viết & Tư liệu đính kèm
+                    </label>
+                    {permissions.includes('manage_content_plan') && (
+                      <label className={cn(
+                        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all border shadow-sm",
+                        isModalUploading
+                          ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                          : "bg-brand-blue text-white hover:bg-blue-700 border-brand-blue"
+                      )}>
+                        {isModalUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        {isModalUploading ? 'Đang tải file...' : '+ Tải ảnh / video từ máy'}
+                        <input
+                          type="file"
+                          className="hidden"
+                          multiple
+                          accept="image/*,video/*"
+                          onChange={handleModalFileUpload}
+                          disabled={isModalUploading || !permissions.includes('manage_content_plan')}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Hiển thị danh sách file / ảnh đã đính kèm */}
+                  {editForm.material && (
+                    <div className="mb-2 p-3 bg-gray-50 dark:bg-gray-800/60 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2">
+                      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">File / Ảnh đã đính kèm:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {editForm.material.split('\n').filter((l: string) => l.trim()).map((line: string, idx: number) => {
+                          const isFile = line.startsWith('FILE:');
+                          const url = isFile ? line.replace('FILE:', '').trim() : (line.startsWith('http') ? line.trim() : null);
+                          const isImg = url ? isImageUrl(url) : false;
+
+                          return (
+                            <div key={idx} className="flex items-center gap-2 p-1.5 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 shadow-sm text-xs">
+                              {isImg && url ? (
+                                <img src={url} alt="Thumbnail" className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 border" onClick={() => setPreviewImage(url)} />
+                              ) : (
+                                <Paperclip className="w-4 h-4 text-gray-400 ml-1" />
+                              )}
+                              <span className="max-w-[180px] truncate text-gray-700 dark:text-gray-300 font-medium">
+                                {url ? (url.split('/').pop()?.slice(0, 25) || 'File đính kèm') : line}
+                              </span>
+                              {url && (
+                                <a href={url} target="_blank" rel="noreferrer" title="Mở link" className="text-brand-blue hover:underline">
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                              {permissions.includes('manage_content_plan') && (
+                                <button
+                                  type="button"
+                                  title="Xóa file này"
+                                  onClick={() => {
+                                    const remaining = editForm.material.split('\n').filter((_: any, i: number) => i !== idx).join('\n');
+                                    setEditForm({ ...editForm, material: remaining });
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 dark:hover:bg-red-900/30"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <input
                     type="text"
-                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue/50 text-gray-900 dark:text-white"
+                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3.5 py-2 text-xs focus:ring-2 focus:ring-brand-blue/50 text-gray-900 dark:text-white placeholder-gray-400"
+                    placeholder="Hoặc dán link Google Drive, link ảnh trực tiếp tại đây..."
                     value={editForm.material || ''}
                     onChange={e => setEditForm({ ...editForm, material: e.target.value })}
                     disabled={!permissions.includes('manage_content_plan')}
