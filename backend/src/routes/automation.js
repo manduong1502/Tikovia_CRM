@@ -91,6 +91,8 @@ router.post('/trigger-approval', async (req, res) => {
     const mediaUrls = extractMediaUrls(plan.material);
     const scheduledAt = parseScheduledDateTime(plan.date, plan.publish_time);
 
+    const isFacebookAutoPost = Boolean(channelInfo && channelInfo.provider === 'facebook' && channelInfo.access_token);
+
     const payload = {
       event: 'plan_approved',
       timestamp: new Date().toISOString(),
@@ -98,6 +100,7 @@ router.post('/trigger-approval', async (req, res) => {
       company_id: plan.company_id,
       company_name: company?.name || 'Không xác định',
       title: plan.title || '',
+      content: plan.desc || '',
       desc: plan.desc || '',
       type: plan.type || 'Text',
       material_raw: plan.material || '',
@@ -105,6 +108,8 @@ router.post('/trigger-approval', async (req, res) => {
       date: plan.date,
       publish_time: plan.publish_time || '09:00',
       scheduled_at: scheduledAt,
+      is_facebook_autopost: isFacebookAutoPost,
+      status_initial: isFacebookAutoPost ? 'Chờ đăng' : 'Đăng thủ công',
       channel: channelInfo
     };
 
