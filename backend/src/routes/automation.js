@@ -113,7 +113,7 @@ router.post('/trigger-approval', async (req, res) => {
       channel: channelInfo
     };
 
-    const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+    const n8nWebhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL;
     let n8nResponse = null;
 
     if (n8nWebhookUrl) {
