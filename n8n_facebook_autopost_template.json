@@ -50,7 +50,7 @@
     },
     {
       "parameters": {
-        "operation": "append",
+        "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
           "mode": "id",
@@ -61,6 +61,7 @@
           "mode": "name",
           "value": "Posts"
         },
+        "matchingColumn": "Plan_ID",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -88,7 +89,7 @@
     },
     {
       "parameters": {
-        "operation": "append",
+        "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
           "mode": "id",
@@ -99,6 +100,7 @@
           "mode": "name",
           "value": "Posts"
         },
+        "matchingColumn": "Plan_ID",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
