@@ -348,10 +348,34 @@ export function PublishedContent() {
         setPosts([{ ...editForm, id: Date.now() }, ...posts]);
       } else {
         setPosts(posts.map(p => p.id === editingItem.id ? { ...p, ...editForm } : p));
+        if (editingItem.plan_id) {
+          triggerN8nSync(editingItem.plan_id);
+        }
       }
       setIsModalOpen(false);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const triggerN8nSync = async (planId: number | string) => {
+    try {
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const defaultBackend = isLocal ? 'http://localhost:3005/api' : 'https://crm.tikovia.vn/api';
+      const backendUrl = (isLocal && !import.meta.env.VITE_BACKEND_URL?.includes('localhost'))
+        ? defaultBackend
+        : (import.meta.env.VITE_BACKEND_URL || defaultBackend);
+      const cleanUrl = backendUrl.replace(/\/+$/, '');
+      const endpoint = cleanUrl.endsWith('/api') ? `${cleanUrl}/automation/trigger-approval` : `${cleanUrl}/api/automation/trigger-approval`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId })
+      });
+      const data = await res.json();
+      console.log('Đã đồng bộ n8n từ trang triển khai:', data);
+    } catch (e) {
+      console.warn('Lỗi gọi automation sync từ triển khai:', e);
     }
   };
 
@@ -376,7 +400,11 @@ export function PublishedContent() {
           .update({ material: updatedMedia })
           .eq('id', item.plan_id);
 
-        if (syncError) console.error('Lỗi đồng bộ file đính kèm sang trang Kế hoạch:', syncError);
+        if (syncError) {
+          console.error('Lỗi đồng bộ file đính kèm sang trang Kế hoạch:', syncError);
+        } else {
+          triggerN8nSync(item.plan_id);
+        }
       } else if (item.title) {
         const { error: syncError } = await supabase
           .from('content_plans')

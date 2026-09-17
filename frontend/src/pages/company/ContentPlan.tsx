@@ -259,6 +259,9 @@ export function ContentPlan() {
               .eq('company_id', editingItem.company_id)
               .eq('title', editingItem.title || finalTitle);
           }
+
+          // Tự động đồng bộ nội dung/ảnh mới sang n8n & Google Sheet nếu bài đã duyệt
+          triggerN8nSync(editingItem.id);
         }
 
         // Cập nhật lại UI cục bộ
@@ -338,6 +341,27 @@ export function ContentPlan() {
       alert('Có lỗi xảy ra khi lưu Feedback: ' + (err.message || err));
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const triggerN8nSync = async (planId: number | string) => {
+    try {
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const defaultBackend = isLocal ? 'http://localhost:3005/api' : 'https://crm.tikovia.vn/api';
+      const backendUrl = (isLocal && !import.meta.env.VITE_BACKEND_URL?.includes('localhost'))
+        ? defaultBackend
+        : (import.meta.env.VITE_BACKEND_URL || defaultBackend);
+      const cleanUrl = backendUrl.replace(/\/+$/, '');
+      const endpoint = cleanUrl.endsWith('/api') ? `${cleanUrl}/automation/trigger-approval` : `${cleanUrl}/api/automation/trigger-approval`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId })
+      });
+      const data = await res.json();
+      console.log('Đã đồng bộ n8n:', data);
+    } catch (e) {
+      console.warn('Lỗi gọi automation sync:', e);
     }
   };
 
@@ -464,24 +488,7 @@ export function ContentPlan() {
         }
 
         // Kích hoạt Webhook gửi bài sang n8n tự động hóa
-        try {
-          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-          const defaultBackend = isLocal ? 'http://localhost:3005/api' : 'https://crm.tikovia.vn/api';
-          const backendUrl = (isLocal && !import.meta.env.VITE_BACKEND_URL?.includes('localhost'))
-            ? defaultBackend
-            : (import.meta.env.VITE_BACKEND_URL || defaultBackend);
-          const cleanUrl = backendUrl.replace(/\/+$/, '');
-          const endpoint = cleanUrl.endsWith('/api') ? `${cleanUrl}/automation/trigger-approval` : `${cleanUrl}/api/automation/trigger-approval`;
-          fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ planId: item.id })
-          }).then(res => res.json()).then(data => {
-            console.log('Đã kích hoạt n8n automation:', data);
-          }).catch(e => console.warn('Lỗi kích hoạt n8n automation:', e));
-        } catch (e) {
-          console.warn('Lỗi gọi automation trigger:', e);
-        }
+        triggerN8nSync(item.id);
       }
     } catch (err) {
       console.error(err);
