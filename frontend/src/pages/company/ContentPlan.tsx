@@ -438,7 +438,11 @@ export function ContentPlan() {
 
         // Kích hoạt Webhook gửi bài sang n8n tự động hóa
         try {
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          const defaultBackend = isLocal ? 'http://localhost:3005/api' : 'https://crm.tikovia.vn/api';
+          const backendUrl = (isLocal && !import.meta.env.VITE_BACKEND_URL?.includes('localhost'))
+            ? defaultBackend
+            : (import.meta.env.VITE_BACKEND_URL || defaultBackend);
           const cleanUrl = backendUrl.replace(/\/+$/, '');
           const endpoint = cleanUrl.endsWith('/api') ? `${cleanUrl}/automation/trigger-approval` : `${cleanUrl}/api/automation/trigger-approval`;
           fetch(endpoint, {
