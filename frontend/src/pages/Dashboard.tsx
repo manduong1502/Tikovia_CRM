@@ -114,6 +114,21 @@ export function Dashboard() {
           aiCost: '0đ',
           status: 'Hoạt động'
         }, ...companies]);
+
+        // Tự động yêu cầu n8n tạo Sheet (Tab) mới cho công ty trên Google Sheets
+        try {
+          const backendBase = (typeof window !== 'undefined' && window.location.hostname === 'localhost')
+            ? 'http://localhost:3005/api'
+            : (import.meta.env.VITE_BACKEND_URL || 'https://crm.tikovia.vn/api');
+
+          fetch(`${backendBase}/automation/create-company-sheet`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ companyId: data[0].id, companyName: newCompanyName.trim() })
+          }).catch(e => console.warn('Tự động tạo Sheet lỗi:', e));
+        } catch (e) {
+          console.warn('Lỗi gọi API tạo Sheet:', e);
+        }
       }
       setIsModalOpen(false);
       setNewCompanyName('');

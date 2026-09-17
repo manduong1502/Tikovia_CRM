@@ -52,6 +52,28 @@ router.post('/connect', async (req, res) => {
          auth_data: { appId, secretKey: pageAccessToken, syncCycle, storeMedia, page_token: pageAccessToken }
       }).eq('id', channelData.id);
 
+      // Đồng bộ thông tin Fanpage & Access Token sang n8n (Google Sheet)
+      try {
+        const { data: comp } = await supabase.from('companies').select('name').eq('id', companyId).maybeSingle();
+        const n8nUrl = process.env.N8N_CONTENT_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL;
+        if (n8nUrl) {
+          axios.post(n8nUrl, {
+            event: 'channel_connected',
+            timestamp: new Date().toISOString(),
+            company_id: companyId,
+            company_name: comp?.name || 'Chưa đặt tên',
+            channel: {
+              name,
+              provider: 'facebook',
+              page_id: appId,
+              access_token: pageAccessToken
+            }
+          }).catch(e => console.warn('n8n channel update notify error:', e.message));
+        }
+      } catch (notifyErr) {
+        console.warn('Channel notify error:', notifyErr.message);
+      }
+
       res.json({ success: true, authUrl: null });
     }
   } catch (err) {

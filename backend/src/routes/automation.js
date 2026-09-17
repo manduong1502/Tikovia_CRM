@@ -141,6 +141,68 @@ router.post('/trigger-approval', async (req, res) => {
   }
 });
 
+// Trigger n8n to create a new sheet tab for a newly created company
+router.post('/create-company-sheet', async (req, res) => {
+  const { companyId, companyName } = req.body;
+  if (!companyName) {
+    return res.status(400).json({ error: 'companyName is required' });
+  }
+
+  try {
+    // Check if company already has facebook channel
+    let channelInfo = null;
+    if (companyId) {
+      const { data: ch } = await supabase
+        .from('channels')
+        .select('id, name, provider, page_id, access_token, auth_data')
+        .eq('company_id', companyId)
+        .eq('provider', 'facebook')
+        .maybeSingle();
+
+      if (ch) {
+        channelInfo = {
+          id: ch.id,
+          name: ch.name,
+          provider: ch.provider,
+          page_id: ch.page_id,
+          access_token: ch.access_token || ch.auth_data?.page_token || ch.auth_data?.secretKey || null
+        };
+      }
+    }
+
+    const payload = {
+      event: 'company_created',
+      timestamp: new Date().toISOString(),
+      company_id: companyId || null,
+      company_name: companyName.trim(),
+      channel: channelInfo
+    };
+
+    const n8nWebhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL;
+    let n8nResponse = null;
+
+    if (n8nWebhookUrl) {
+      try {
+        const resp = await axios.post(n8nWebhookUrl, payload, { timeout: 10000 });
+        n8nResponse = { status: resp.status, data: resp.data };
+      } catch (webhookErr) {
+        console.warn('n8n Webhook delivery error (create-company-sheet):', webhookErr.message);
+        n8nResponse = { error: webhookErr.message };
+      }
+    }
+
+    return res.json({
+      success: true,
+      delivered_to_n8n: !!n8nWebhookUrl,
+      payload,
+      n8nResponse
+    });
+  } catch (err) {
+    console.error('Lỗi create-company-sheet:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Callback from n8n when post is live or updated
 router.post('/callback-published', async (req, res) => {
   const { plan_id, live_post_url, status, error_log } = req.body;

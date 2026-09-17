@@ -1,5 +1,5 @@
 {
-  "name": "Tikovia CRM - Facebook Auto-Post Pipeline",
+  "name": "Tikovia CRM - Facebook Auto-Post Pipeline (Multi-Company)",
   "nodes": [
     {
       "parameters": {
@@ -10,11 +10,11 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        200,
-        250
+        160,
+        200
       ],
       "id": "webhook-trigger",
-      "name": "Webhook Tikovia CRM Duyệt Bài"
+      "name": "Webhook Tikovia CRM (Duyệt bài / Tạo cty)"
     },
     {
       "parameters": {
@@ -26,11 +26,11 @@
           },
           "conditions": [
             {
-              "id": "check-fb",
-              "leftValue": "={{ $json.body.is_facebook_autopost }}",
-              "rightValue": true,
+              "id": "check-event-type",
+              "leftValue": "={{ $json.body?.event }}",
+              "rightValue": "company_created",
               "operator": {
-                "type": "boolean",
+                "type": "string",
                 "operation": "equals"
               }
             }
@@ -42,11 +42,11 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        440,
-        250
+        380,
+        200
       ],
-      "id": "if-is-facebook",
-      "name": "Có Kênh Facebook Fanpage?"
+      "id": "if-event-type",
+      "name": "Sự kiện Tạo Công Ty Mới?"
     },
     {
       "parameters": {
@@ -59,22 +59,54 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "Posts"
+          "value": "⚙️ Cấu hình Fanpage"
         },
-        "matchingColumn": "Plan_ID",
+        "matchingColumn": "Company_Name",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Plan_ID": "={{ $json.body.plan_id }}",
+            "Company_Name": "={{ $json.body.company_name }}",
+            "Fanpage_Name": "={{ $json.body.channel?.name || 'Chưa kết nối' }}",
+            "Page_ID": "={{ $json.body.channel?.page_id || '' }}",
+            "Access_Token": "={{ $json.body.channel?.access_token || '' }}",
+            "Sheet_Name": "={{ $json.body.company_name }}",
+            "Status": "Chưa kết nối"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        640,
+        80
+      ],
+      "id": "gsheet-create-company-config",
+      "name": "Tạo Cấu Hình Công Ty Mới"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1CimQGRcQqWVvehkS9OfQ_iCH7sd88YtT8XYdbhFOCI0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "⚙️ Cấu hình Fanpage"
+        },
+        "matchingColumn": "Company_Name",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
             "Company_Name": "={{ $json.body.company_name }}",
             "Fanpage_Name": "={{ $json.body.channel?.name || 'N/A' }}",
             "Page_ID": "={{ $json.body.channel?.page_id || '' }}",
-            "Title": "={{ $json.body.title }}",
-            "Content": "={{ $json.body.content }}",
-            "Media_URLs": "={{ $json.body.media_urls.join('\\n') }}",
-            "Scheduled_Time": "={{ $json.body.scheduled_at }}",
-            "Status": "Chờ đăng",
-            "Access_Token": "={{ $json.body.channel?.access_token || '' }}"
+            "Access_Token": "={{ $json.body.channel?.access_token || '' }}",
+            "Sheet_Name": "={{ $json.body.company_name }}",
+            "Status": "={{ $json.body.is_facebook_autopost ? 'Hoạt động' : 'Chưa kết nối' }}"
           }
         },
         "options": {}
@@ -82,11 +114,11 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        700,
-        150
+        640,
+        320
       ],
-      "id": "gsheet-append-queue",
-      "name": "Lưu Hàng Đợi Chờ Đăng"
+      "id": "gsheet-sync-company-token",
+      "name": "Lưu / Cập Nhật Token Công Ty"
     },
     {
       "parameters": {
@@ -99,22 +131,19 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "Posts"
+          "value": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.company_name }}"
         },
         "matchingColumn": "Plan_ID",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Plan_ID": "={{ $json.body.plan_id }}",
-            "Company_Name": "={{ $json.body.company_name }}",
-            "Fanpage_Name": "N/A",
-            "Page_ID": "",
-            "Title": "={{ $json.body.title }}",
-            "Content": "={{ $json.body.content }}",
-            "Media_URLs": "={{ $json.body.media_urls.join('\\n') }}",
-            "Scheduled_Time": "={{ $json.body.scheduled_at }}",
-            "Status": "Đăng thủ công",
-            "Access_Token": ""
+            "Plan_ID": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.plan_id }}",
+            "Title": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.title }}",
+            "Content": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.content }}",
+            "Media_URLs": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.media_urls.join('\\n') }}",
+            "Scheduled_Time": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.scheduled_at }}",
+            "Status": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.is_facebook_autopost ? 'Chờ đăng' : 'Đăng thủ công' }}",
+            "Live_Post_URL": ""
           }
         },
         "options": {}
@@ -122,11 +151,11 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        700,
-        350
+        920,
+        320
       ],
-      "id": "gsheet-append-manual",
-      "name": "Lưu Trữ Đăng Thủ Công"
+      "id": "gsheet-append-post-clean",
+      "name": "Lưu Bài Vào Sheet Riêng Của Cty"
     },
     {
       "parameters": {
@@ -142,8 +171,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        200,
-        600
+        160,
+        640
       ],
       "id": "schedule-checker",
       "name": "Quét Lịch Hẹn (Mỗi 5 phút)"
@@ -159,7 +188,39 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "Posts"
+          "value": "⚙️ Cấu hình Fanpage"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Hoạt động"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        380,
+        640
+      ],
+      "id": "gsheet-read-companies",
+      "name": "Đọc DS Công Ty Hoạt Động"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1CimQGRcQqWVvehkS9OfQ_iCH7sd88YtT8XYdbhFOCI0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $json.Sheet_Name }}"
         },
         "filtersUI": {
           "values": [
@@ -174,11 +235,11 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        420,
-        600
+        600,
+        640
       ],
-      "id": "gsheet-read-pending",
-      "name": "Lọc Bài Đến Giờ Đăng"
+      "id": "gsheet-read-company-posts",
+      "name": "Đọc Bài Chờ Đăng Của Cty"
     },
     {
       "parameters": {
@@ -206,8 +267,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        640,
-        600
+        820,
+        640
       ],
       "id": "if-time-arrived",
       "name": "Đã Đến Giờ Hẹn?"
@@ -223,7 +284,7 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "Posts"
+          "value": "={{ $('Đọc DS Công Ty Hoạt Động').item.json.Sheet_Name }}"
         },
         "matchingColumn": "Plan_ID",
         "matchingValue": "={{ $json.Plan_ID }}",
@@ -240,8 +301,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        860,
-        580
+        1040,
+        620
       ],
       "id": "lock-row",
       "name": "Khóa Dòng (Đang xử lý)"
@@ -272,8 +333,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1080,
-        580
+        1260,
+        620
       ],
       "id": "if-has-media",
       "name": "Có Ảnh / Video?"
@@ -281,7 +342,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{ $json.Page_ID }}/photos",
+        "url": "=https://graph.facebook.com/v20.0/{{ $('Đọc DS Công Ty Hoạt Động').item.json.Page_ID }}/photos",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -295,7 +356,7 @@
             },
             {
               "name": "access_token",
-              "value": "={{ $json.Access_Token }}"
+              "value": "={{ $('Đọc DS Công Ty Hoạt Động').item.json.Access_Token }}"
             }
           ]
         },
@@ -304,8 +365,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
-        480
+        1500,
+        520
       ],
       "id": "fb-post-photo",
       "name": "Đăng Bài Kèm Ảnh (FB Graph API)"
@@ -313,7 +374,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{ $json.Page_ID }}/feed",
+        "url": "=https://graph.facebook.com/v20.0/{{ $('Đọc DS Công Ty Hoạt Động').item.json.Page_ID }}/feed",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -323,7 +384,7 @@
             },
             {
               "name": "access_token",
-              "value": "={{ $json.Access_Token }}"
+              "value": "={{ $('Đọc DS Công Ty Hoạt Động').item.json.Access_Token }}"
             }
           ]
         },
@@ -332,8 +393,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
-        680
+        1500,
+        720
       ],
       "id": "fb-post-text",
       "name": "Đăng Bài Chỉ Có Chữ (FB Graph API)"
@@ -349,7 +410,7 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "Posts"
+          "value": "={{ $('Đọc DS Công Ty Hoạt Động').item.json.Sheet_Name }}"
         },
         "matchingColumn": "Plan_ID",
         "matchingValue": "={{ $('Khóa Dòng (Đang xử lý)').item.json.Plan_ID }}",
@@ -370,8 +431,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        1560,
-        580
+        1740,
+        620
       ],
       "id": "gsheet-update-published",
       "name": "Cập Nhật Google Sheet: Đã Đăng"
@@ -388,37 +449,48 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1800,
-        580
+        1980,
+        620
       ],
       "id": "crm-callback",
       "name": "Phản Hồi Link Về Tikovia CRM"
     }
   ],
   "connections": {
-    "Webhook Tikovia CRM Duyệt Bài": {
+    "Webhook Tikovia CRM (Duyệt bài / Tạo cty)": {
       "main": [
         [
           {
-            "node": "Có Kênh Facebook Fanpage?",
+            "node": "Sự kiện Tạo Công Ty Mới?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Có Kênh Facebook Fanpage?": {
+    "Sự kiện Tạo Công Ty Mới?": {
       "main": [
         [
           {
-            "node": "Lưu Hàng Đợi Chờ Đăng",
+            "node": "Tạo Cấu Hình Công Ty Mới",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Lưu Trữ Đăng Thủ Công",
+            "node": "Lưu / Cập Nhật Token Công Ty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lưu / Cập Nhật Token Công Ty": {
+      "main": [
+        [
+          {
+            "node": "Lưu Bài Vào Sheet Riêng Của Cty",
             "type": "main",
             "index": 0
           }
@@ -429,14 +501,25 @@
       "main": [
         [
           {
-            "node": "Lọc Bài Đến Giờ Đăng",
+            "node": "Đọc DS Công Ty Hoạt Động",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Lọc Bài Đến Giờ Đăng": {
+    "Đọc DS Công Ty Hoạt Động": {
+      "main": [
+        [
+          {
+            "node": "Đọc Bài Chờ Đăng Của Cty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Bài Chờ Đăng Của Cty": {
       "main": [
         [
           {
