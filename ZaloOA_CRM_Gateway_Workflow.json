@@ -1,0 +1,101 @@
+{
+  "name": "Zalo OA AI Bot - via Tikovia CRM Gateway",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zalo_on_message",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "Nhận Tin Từ CRM",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "zalo_on_message"
+    },
+    {
+      "parameters": {
+        "content": "## BƯỚC 1: Dữ liệu nhận vào\nNode 'Nhận Tin Từ CRM' sẽ hứng tin nhắn khách hàng đổ về.\nBạn có thể trích xuất text khách bằng công thức:\n`{{ $json.body.message }}`\n\nVà id khách hàng:\n`{{ $json.body.sender_id }}`",
+        "height": 260,
+        "width": 360,
+        "color": 2
+      },
+      "id": "note-1",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        160,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## BƯỚC 2: Ráp luồng AI của bạn vào đây\nHãy copy các Node suy nghĩ AI từ file V3 cũ thả vào vùng này và nối mạch từ Node số 1",
+        "height": 260,
+        "width": 460,
+        "color": 4
+      },
+      "id": "note-2",
+      "name": "Sticky Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        600,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.tikovia.vn/api/webhooks/send",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"company_id\": \"{{ $('Nhận Tin Từ CRM').item.json.body.company_id }}\",\n  \"channel_id\": \"{{ $('Nhận Tin Từ CRM').item.json.body.channel_id }}\",\n  \"sender_id\": \"{{ $('Nhận Tin Từ CRM').item.json.body.sender_id }}\",\n  \"source\": \"zalo\",\n  \"save_to_db\": true,\n  \"staff_name\": \"AI Bot\",\n  \"message\": \"{{ $json.output_text }}\",\n  \"attachment_url\": \"{{ $json.output_image_url }}\"\n}",
+        "options": {}
+      },
+      "id": "node-reply",
+      "name": "Phản hồi lại khách qua CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## BƯỚC 3: Trả lời về CRM\nTại mục JSON Body, bạn có thể truyền link ảnh vào `attachment_url` nếu Bot có gen ra ảnh, nếu không cứ xóa đi hoặc để trống.\nTham số `save_to_db: true` rất quan trọng, nó giúp lưu log nhắn tin của con bot hiển thị lên khung chat của CRM Sale.",
+        "height": 260,
+        "width": 500,
+        "color": 1
+      },
+      "id": "note-3",
+      "name": "Sticky Note 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "Nhận Tin Từ CRM": {
+      "main": [
+        [
+          {
+            "node": "Phản hồi lại khách qua CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

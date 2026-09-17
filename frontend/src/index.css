@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-brand-blue: #1a56db;
+  --color-brand-light: #f3f4f6;
+  --color-brand-dark: #111827;
+}
+
+@layer base {
+  body {
+    @apply text-gray-900 bg-gray-50 font-sans antialiased;
+  }
+  
+  .dark body {
+    @apply text-gray-100 bg-gray-900;
+  }
+}
+
+@layer components {
+  /* Premium Glassmorphism Card */
+  .glass-card {
+    @apply bg-white/90 backdrop-blur-md border border-gray-100 shadow-sm rounded-xl overflow-hidden;
+  }
+  
+  .dark .glass-card {
+    @apply bg-gray-800/90 border-gray-700;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-1.5 h-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    @apply bg-gray-600;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+}
