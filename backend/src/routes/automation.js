@@ -68,7 +68,7 @@ router.post('/trigger-approval', async (req, res) => {
       .eq('id', plan.company_id)
       .maybeSingle();
 
-    // 3. Fetch Channel details if channel_id is selected
+    // 3. Fetch Channel details (hoặc tự động lấy kênh Facebook đang hoạt động của công ty)
     let channelInfo = null;
     if (plan.channel_id) {
       const { data: ch } = await supabase
@@ -85,6 +85,32 @@ router.post('/trigger-approval', async (req, res) => {
           page_id: ch.page_id,
           access_token: ch.access_token || ch.auth_data?.page_token || ch.auth_data?.secretKey || null
         };
+      }
+    }
+
+    // Nếu bài viết chưa chọn kênh nhưng công ty đã có kết nối Fanpage Facebook -> Tự động nhận diện kênh này
+    if (!channelInfo && plan.company_id) {
+      const { data: ch } = await supabase
+        .from('channels')
+        .select('id, name, provider, page_id, access_token, auth_data')
+        .eq('company_id', plan.company_id)
+        .eq('provider', 'facebook')
+        .eq('status', 'connected')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ch) {
+        channelInfo = {
+          id: ch.id,
+          name: ch.name,
+          provider: ch.provider,
+          page_id: ch.page_id,
+          access_token: ch.access_token || ch.auth_data?.page_token || ch.auth_data?.secretKey || null
+        };
+        // Cập nhật lại channel_id cho bài viết
+        await supabase.from('content_plans').update({ channel_id: ch.id }).eq('id', plan.id);
+        await supabase.from('published_contents').update({ channel_id: ch.id }).eq('plan_id', plan.id);
       }
     }
 

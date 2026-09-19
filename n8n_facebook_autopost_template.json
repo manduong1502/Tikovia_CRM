@@ -61,6 +61,7 @@
           "mode": "name",
           "value": "Cấu hình Fanpage"
         },
+        "columnToMatchOn": "Company_Name",
         "matchingColumn": "Company_Name",
         "columns": {
           "mappingMode": "defineBelow",
@@ -97,6 +98,7 @@
           "mode": "name",
           "value": "Cấu hình Fanpage"
         },
+        "columnToMatchOn": "Company_Name",
         "matchingColumn": "Company_Name",
         "columns": {
           "mappingMode": "defineBelow",
@@ -133,6 +135,7 @@
           "mode": "name",
           "value": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.company_name }}"
         },
+        "columnToMatchOn": "Plan_ID",
         "matchingColumn": "Plan_ID",
         "columns": {
           "mappingMode": "defineBelow",
