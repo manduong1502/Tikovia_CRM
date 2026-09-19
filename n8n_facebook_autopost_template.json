@@ -72,7 +72,10 @@
             "Access_Token": "={{ $json.body.channel?.access_token || '' }}",
             "Sheet_Name": "={{ $json.body.company_name }}",
             "Status": "Chưa kết nối"
-          }
+          },
+          "matchingColumns": [
+            "Company_Name"
+          ]
         },
         "options": {}
       },
@@ -109,7 +112,10 @@
             "Access_Token": "={{ $json.body.channel?.access_token || '' }}",
             "Sheet_Name": "={{ $json.body.company_name }}",
             "Status": "={{ $json.body.is_facebook_autopost ? 'Hoạt động' : 'Chưa kết nối' }}"
-          }
+          },
+          "matchingColumns": [
+            "Company_Name"
+          ]
         },
         "options": {}
       },
@@ -147,7 +153,10 @@
             "Scheduled_Time": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.scheduled_at }}",
             "Status": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.is_facebook_autopost ? 'Chờ đăng' : 'Đăng thủ công' }}",
             "Live_Post_URL": ""
-          }
+          },
+          "matchingColumns": [
+            "Plan_ID"
+          ]
         },
         "options": {}
       },
