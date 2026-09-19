@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Book, Info } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface AddChannelModalProps {
   isOpen: boolean;
@@ -24,32 +25,81 @@ export function AddChannelModal({ isOpen, onClose, companyId }: AddChannelModalP
     
     setIsLoading(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-      const response = await fetch(`${backendUrl}/api/channels/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          platform, 
-          name: channelName, 
-          appId, 
-          secretKey: appSecret, 
-          companyId,
-          syncCycle: parseInt(syncCycle),
-          storeMedia 
-        })
-      });
-      const data = await response.json();
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      } else if (data.success) {
+      const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+      const rawBackend = (isLocal && !import.meta.env.VITE_BACKEND_URL?.includes('localhost'))
+        ? 'http://localhost:3005/api'
+        : (import.meta.env.VITE_BACKEND_URL || 'https://crm.tikovia.vn/api');
+      const backendBase = rawBackend.replace(/\/+$/, '').replace(/\/api$/, '');
+      const endpoint = `${backendBase}/api/channels/connect`;
+
+      let backendSuccess = false;
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            platform, 
+            name: channelName, 
+            appId, 
+            secretKey: appSecret, 
+            companyId,
+            syncCycle: parseInt(syncCycle),
+            storeMedia 
+          })
+        });
+        const data = await response.json();
+        if (data.authUrl) {
+          window.location.href = data.authUrl;
+          return;
+        } else if (data.success) {
+          backendSuccess = true;
+          onClose();
+          window.location.reload();
+          return;
+        }
+      } catch (beErr) {
+        console.warn('Backend /channels/connect unreachable or error, using direct DB fallback:', beErr);
+      }
+
+      // Dự phòng lưu trực tiếp vào Supabase nếu backend có sự cố kết nối
+      if (!backendSuccess && platform === 'facebook') {
+        const { error: dbError } = await supabase.from('channels').insert({
+          company_id: companyId,
+          provider: 'facebook',
+          page_id: appId,
+          name: channelName,
+          access_token: appSecret,
+          status: 'connected',
+          auth_data: { appId, secretKey: appSecret, page_token: appSecret, syncCycle: parseInt(syncCycle), storeMedia }
+        });
+        if (dbError) throw dbError;
+
+        // Đồng bộ sang n8n Webhook
+        try {
+          const { data: comp } = await supabase.from('companies').select('name').eq('id', companyId).maybeSingle();
+          const n8nWebhookUrl = 'https://bot.tikovia.vn/webhook/tikovia-post-approved';
+          fetch(n8nWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event: 'channel_connected',
+              timestamp: new Date().toISOString(),
+              company_id: companyId,
+              company_name: comp?.name || 'Tên công ty',
+              channel: { name: channelName, provider: 'facebook', page_id: appId, access_token: appSecret }
+            })
+          }).catch(e => console.warn('n8n notify error:', e));
+        } catch (e) {
+          console.warn('Silent n8n notify fail:', e);
+        }
+
         onClose();
         window.location.reload();
-      } else {
-        alert('Lỗi khi kết nối: ' + (data.error || 'Có lỗi không xác định xảy ra'));
+        return;
       }
-    } catch (err) {
-      console.error(err);
-      alert('Không thể kết nối đến backend server');
+    } catch (err: any) {
+      console.error('Lỗi khi kết nối kênh:', err);
+      alert('Lỗi khi kết nối: ' + (err?.message || 'Có lỗi xảy ra'));
     } finally {
       setIsLoading(false);
     }

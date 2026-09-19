@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001/api';
+const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+const BACKEND_URL = (isLocal && !import.meta.env.VITE_BACKEND_URL?.includes('localhost'))
+  ? 'http://localhost:3005/api'
+  : (import.meta.env.VITE_BACKEND_URL || 'https://crm.tikovia.vn/api');
 
 /**
  * Upload a file to backend server storage (146GB+) with fallback to Supabase Storage
