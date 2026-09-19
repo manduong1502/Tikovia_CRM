@@ -139,19 +139,19 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.company_name }}"
+          "value": "={{ $json.body.company_name }}"
         },
         "columnToMatchOn": "Plan_ID",
         "matchingColumn": "Plan_ID",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Plan_ID": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.plan_id }}",
-            "Title": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.title }}",
-            "Content": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.content }}",
-            "Media_URLs": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.media_urls.join('\\n') }}",
-            "Scheduled_Time": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.scheduled_at }}",
-            "Status": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.is_facebook_autopost ? 'Chờ đăng' : 'Đăng thủ công' }}",
+            "Plan_ID": "={{ $json.body.plan_id }}",
+            "Title": "={{ $json.body.title }}",
+            "Content": "={{ $json.body.content }}",
+            "Media_URLs": "={{ $json.body.media_urls.join('\\n') }}",
+            "Scheduled_Time": "={{ $json.body.scheduled_at }}",
+            "Status": "={{ $json.body.is_facebook_autopost ? 'Chờ đăng' : 'Đăng thủ công' }}",
             "Live_Post_URL": ""
           },
           "matchingColumns": [
@@ -163,8 +163,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        920,
-        320
+        640,
+        520
       ],
       "id": "gsheet-append-post-clean",
       "name": "Lưu Bài Vào Sheet Riêng Của Cty"
@@ -494,13 +494,7 @@
             "node": "Lưu / Cập Nhật Token Công Ty",
             "type": "main",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "Lưu / Cập Nhật Token Công Ty": {
-      "main": [
-        [
+          },
           {
             "node": "Lưu Bài Vào Sheet Riêng Của Cty",
             "type": "main",
