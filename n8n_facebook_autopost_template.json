@@ -42,11 +42,24 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        400,
+        380,
         200
       ],
       "id": "if-event-type",
       "name": "Sự kiện Tạo Công Ty Mới?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nreturn {\n  json: {\n    Company_Name: (body.company_name || '').trim(),\n    Fanpage_Name: body.channel?.name || 'Chưa kết nối',\n    Page_ID: String(body.channel?.page_id || ''),\n    Access_Token: body.channel?.access_token || '',\n    Sheet_Name: (body.company_name || '').trim(),\n    Status: 'Chưa kết nối'\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        80
+      ],
+      "id": "code-prepare-company",
+      "name": "Chuẩn Bị Cấu Hình Công Ty"
     },
     {
       "parameters": {
@@ -62,26 +75,34 @@
           "value": "Cấu hình Fanpage"
         },
         "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Company_Name": "={{ $json.body.company_name }}",
-            "Fanpage_Name": "={{ $json.body.channel?.name || 'Chưa kết nối' }}",
-            "Page_ID": "={{ $json.body.channel?.page_id || '' }}",
-            "Access_Token": "={{ $json.body.channel?.access_token || '' }}",
-            "Sheet_Name": "={{ $json.body.company_name }}",
-            "Status": "Chưa kết nối"
-          }
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
         },
         "options": {}
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        680,
+        840,
         80
       ],
       "id": "gsheet-create-company-config",
       "name": "Tạo Cấu Hình Công Ty Mới"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || {};\nreturn {\n  json: {\n    Plan_ID: body.plan_id,\n    Title: body.title || '',\n    Content: body.content || '',\n    Media_URLs: Array.isArray(body.media_urls) ? body.media_urls.join('\\n') : (body.media_urls || ''),\n    Scheduled_Time: body.scheduled_at || '',\n    Status: body.is_facebook_autopost ? 'Chờ đăng' : 'Đăng thủ công',\n    Live_Post_URL: ''\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        320
+      ],
+      "id": "code-prepare-post",
+      "name": "Chuẩn Bị Dữ Liệu Bài Đăng"
     },
     {
       "parameters": {
@@ -94,26 +115,20 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "={{ $json.body.company_name?.trim() || 'Tikovia (Hệ thống)' }}"
+          "value": "={{ $('Webhook Tikovia CRM (Duyệt bài / Tạo cty)').item.json.body.company_name?.trim() || 'Tikovia (Hệ thống)' }}"
         },
         "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Plan_ID": "={{ $json.body.plan_id }}",
-            "Title": "={{ $json.body.title || '' }}",
-            "Content": "={{ $json.body.content || '' }}",
-            "Media_URLs": "={{ Array.isArray($json.body.media_urls) ? $json.body.media_urls.join('\\n') : ($json.body.media_urls || '') }}",
-            "Scheduled_Time": "={{ $json.body.scheduled_at || '' }}",
-            "Status": "={{ $json.body.is_facebook_autopost ? 'Chờ đăng' : 'Đăng thủ công' }}",
-            "Live_Post_URL": ""
-          }
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
         },
         "options": {}
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        680,
+        840,
         320
       ],
       "id": "gsheet-append-post-clean",
@@ -436,11 +451,33 @@
       "main": [
         [
           {
-            "node": "Tạo Cấu Hình Công Ty Mới",
+            "node": "Chuẩn Bị Cấu Hình Công Ty",
             "type": "main",
             "index": 0
           }
         ],
+        [
+          {
+            "node": "Chuẩn Bị Dữ Liệu Bài Đăng",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chuẩn Bị Cấu Hình Công Ty": {
+      "main": [
+        [
+          {
+            "node": "Tạo Cấu Hình Công Ty Mới",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chuẩn Bị Dữ Liệu Bài Đăng": {
+      "main": [
         [
           {
             "node": "Lưu Bài Vào Sheet Riêng Của Cty",
