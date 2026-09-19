@@ -42,7 +42,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        380,
+        400,
         200
       ],
       "id": "if-event-type",
@@ -50,7 +50,7 @@
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
+        "operation": "append",
         "documentId": {
           "__rl": true,
           "mode": "id",
@@ -61,8 +61,6 @@
           "mode": "name",
           "value": "Cấu hình Fanpage"
         },
-        "columnToMatchOn": "Company_Name",
-        "matchingColumn": "Company_Name",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -72,17 +70,14 @@
             "Access_Token": "={{ $json.body.channel?.access_token || '' }}",
             "Sheet_Name": "={{ $json.body.company_name }}",
             "Status": "Chưa kết nối"
-          },
-          "matchingColumns": [
-            "Company_Name"
-          ]
+          }
         },
         "options": {}
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        640,
+        680,
         80
       ],
       "id": "gsheet-create-company-config",
@@ -90,7 +85,7 @@
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
+        "operation": "append",
         "documentId": {
           "__rl": true,
           "mode": "id",
@@ -99,72 +94,27 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "Cấu hình Fanpage"
+          "value": "={{ $json.body.company_name?.trim() || 'Tikovia (Hệ thống)' }}"
         },
-        "columnToMatchOn": "Company_Name",
-        "matchingColumn": "Company_Name",
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Company_Name": "={{ $json.body.company_name }}",
-            "Fanpage_Name": "={{ $json.body.channel?.name || 'N/A' }}",
-            "Page_ID": "={{ $json.body.channel?.page_id || '' }}",
-            "Access_Token": "={{ $json.body.channel?.access_token || '' }}",
-            "Sheet_Name": "={{ $json.body.company_name }}",
-            "Status": "={{ $json.body.is_facebook_autopost ? 'Hoạt động' : 'Chưa kết nối' }}"
-          },
-          "matchingColumns": [
-            "Company_Name"
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        640,
-        320
-      ],
-      "id": "gsheet-sync-company-token",
-      "name": "Lưu / Cập Nhật Token Công Ty"
-    },
-    {
-      "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "1CimQGRcQqWVvehkS9OfQ_iCH7sd88YtT8XYdbhFOCI0"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "={{ $json.body.company_name }}"
-        },
-        "columnToMatchOn": "Plan_ID",
-        "matchingColumn": "Plan_ID",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
             "Plan_ID": "={{ $json.body.plan_id }}",
-            "Title": "={{ $json.body.title }}",
-            "Content": "={{ $json.body.content }}",
-            "Media_URLs": "={{ $json.body.media_urls.join('\\n') }}",
-            "Scheduled_Time": "={{ $json.body.scheduled_at }}",
+            "Title": "={{ $json.body.title || '' }}",
+            "Content": "={{ $json.body.content || '' }}",
+            "Media_URLs": "={{ Array.isArray($json.body.media_urls) ? $json.body.media_urls.join('\\n') : ($json.body.media_urls || '') }}",
+            "Scheduled_Time": "={{ $json.body.scheduled_at || '' }}",
             "Status": "={{ $json.body.is_facebook_autopost ? 'Chờ đăng' : 'Đăng thủ công' }}",
             "Live_Post_URL": ""
-          },
-          "matchingColumns": [
-            "Plan_ID"
-          ]
+          }
         },
         "options": {}
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        640,
-        520
+        680,
+        320
       ],
       "id": "gsheet-append-post-clean",
       "name": "Lưu Bài Vào Sheet Riêng Của Cty"
@@ -456,7 +406,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"plan_id\": {{ $('Khóa Dòng (Đang xử lý)').item.json.Plan_ID }},\n  \"live_post_url\": \"https://facebook.com/{{ $json.post_id || $json.id }}\",\n  \"status\": \"published\"\n}",
-        "options": {}
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -490,11 +442,6 @@
           }
         ],
         [
-          {
-            "node": "Lưu / Cập Nhật Token Công Ty",
-            "type": "main",
-            "index": 0
-          },
           {
             "node": "Lưu Bài Vào Sheet Riêng Của Cty",
             "type": "main",
