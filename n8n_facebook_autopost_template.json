@@ -82,6 +82,12 @@
         },
         "options": {}
       },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Google Sheets account",
+          "name": "Google Sheets account"
+        }
+      },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
@@ -93,7 +99,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.item.json.body || {};\nreturn {\n  json: {\n    Plan_ID: body.plan_id,\n    Title: body.title || '',\n    Content: body.content || '',\n    Media_URLs: Array.isArray(body.media_urls) ? body.media_urls.join('\\n') : (body.media_urls || ''),\n    Scheduled_Time: body.scheduled_at || '',\n    Status: body.is_facebook_autopost ? 'Chờ đăng' : 'Đăng thủ công',\n    Live_Post_URL: ''\n  }\n};"
+        "jsCode": "const body = $input.item.json.body || {};\nlet mediaUrl = Array.isArray(body.media_urls) ? body.media_urls.join('\\n') : (body.media_urls || '');\n\n// Chuyển link uploads local sang Supabase CDN nếu cần\nif (mediaUrl.includes('/uploads/')) {\n  const filename = mediaUrl.split('/uploads/')[1].split('?')[0];\n  mediaUrl = `https://prghikcgrgjsdowmnyzs.supabase.co/storage/v1/object/public/materials/${filename}`;\n}\n\nreturn {\n  json: {\n    Plan_ID: String(body.plan_id || ''),\n    Title: body.title || '',\n    Content: body.content || '',\n    Media_URLs: mediaUrl,\n    Scheduled_Time: body.scheduled_at || '',\n    Status: body.is_facebook_autopost ? 'Chờ đăng' : 'Đăng thủ công',\n    Live_Post_URL: ''\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -124,6 +130,12 @@
           "schema": []
         },
         "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Google Sheets account",
+          "name": "Google Sheets account"
+        }
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
@@ -175,7 +187,15 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "returnAllMatches": true
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Google Sheets account",
+          "name": "Google Sheets account"
+        }
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
@@ -207,7 +227,15 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "returnAllMatches": true
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Google Sheets account",
+          "name": "Google Sheets account"
+        }
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
@@ -220,35 +248,16 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "check-time",
-              "leftValue": "={{ new Date($json.Scheduled_Time).getTime() }}",
-              "rightValue": "={{ new Date().getTime() }}",
-              "operator": {
-                "type": "number",
-                "operation": "lte"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "jsCode": "// Gộp thông tin công ty và chuẩn hóa thời gian hẹn + link ảnh\nconst companies = $('Đọc DS Công Ty Hoạt Động').all().map(i => i.json);\nconst posts = $input.all().map(i => i.json);\n\nconst results = [];\nconst now = Date.now();\n\nfor (const post of posts) {\n  // Ghép công ty tương ứng\n  const company = companies.find(c => c.Sheet_Name === post.Sheet_Name) || companies[0] || {};\n  \n  // Kiểm tra thời gian hẹn (chuẩn hóa múi giờ Việt Nam +07:00)\n  const schedStr = String(post.Scheduled_Time || '').trim();\n  const isoStr = schedStr.includes('+') ? schedStr : (schedStr.replace(' ', 'T') + '+07:00');\n  const schedTime = new Date(isoStr).getTime();\n  \n  // Chỉ giữ bài đã đến giờ hẹn (schedTime <= now)\n  if (!isNaN(schedTime) && schedTime <= now) {\n    let media = String(post.Media_URLs || '').replace('FILE:', '').trim();\n    let photoUrl = media.split('\\n')[0].trim();\n    \n    // Tự động chuyển link local uploads sang Supabase CDN để Facebook tải ảnh 100% thành công\n    if (photoUrl.includes('/uploads/')) {\n      const filename = photoUrl.split('/uploads/')[1].split('?')[0];\n      photoUrl = `https://prghikcgrgjsdowmnyzs.supabase.co/storage/v1/object/public/materials/${filename}`;\n    }\n    \n    results.push({\n      json: {\n        ...post,\n        Company_Name: company.Company_Name || '',\n        Fanpage_Name: company.Fanpage_Name || '',\n        Page_ID: company.Page_ID || '',\n        Access_Token: company.Access_Token || '',\n        Sheet_Name: company.Sheet_Name || post.Sheet_Name || 'Tikovia (Hệ thống)',\n        photo_url: photoUrl,\n        has_media: Boolean(photoUrl && photoUrl.startsWith('http'))\n      }\n    });\n  }\n}\n\nreturn results;"
       },
-      "type": "n8n-nodes-base.if",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         820,
         640
       ],
-      "id": "if-time-arrived",
-      "name": "Đã Đến Giờ Hẹn?"
+      "id": "code-filter-and-enrich",
+      "name": "Lọc Bài Đến Giờ & Ghép Token"
     },
     {
       "parameters": {
@@ -261,7 +270,7 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "={{ $('Đọc DS Công Ty Hoạt Động').item.json.Sheet_Name }}"
+          "value": "={{ $json.Sheet_Name }}"
         },
         "matchingColumn": "Plan_ID",
         "matchingValue": "={{ $json.Plan_ID }}",
@@ -275,11 +284,17 @@
         },
         "options": {}
       },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Google Sheets account",
+          "name": "Google Sheets account"
+        }
+      },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
         1040,
-        620
+        640
       ],
       "id": "lock-row",
       "name": "Khóa Dòng (Đang xử lý)"
@@ -295,11 +310,11 @@
           "conditions": [
             {
               "id": "check-has-media",
-              "leftValue": "={{ $json.Media_URLs }}",
-              "rightValue": "",
+              "leftValue": "={{ $('Lọc Bài Đến Giờ & Ghép Token').item.json.has_media }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "notEquals"
+                "type": "boolean",
+                "operation": "equals"
               }
             }
           ],
@@ -311,7 +326,7 @@
       "typeVersion": 2,
       "position": [
         1260,
-        620
+        640
       ],
       "id": "if-has-media",
       "name": "Có Ảnh / Video?"
@@ -319,21 +334,21 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{ $('Đọc DS Công Ty Hoạt Động').item.json.Page_ID }}/photos",
+        "url": "=https://graph.facebook.com/v20.0/{{ $('Lọc Bài Đến Giờ & Ghép Token').item.json.Page_ID }}/photos",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "url",
-              "value": "={{ $json.Media_URLs.replace('FILE:', '').split('\\n')[0].trim() }}"
+              "value": "={{ $('Lọc Bài Đến Giờ & Ghép Token').item.json.photo_url }}"
             },
             {
               "name": "caption",
-              "value": "={{ $json.Content }}"
+              "value": "={{ $('Lọc Bài Đến Giờ & Ghép Token').item.json.Content }}"
             },
             {
               "name": "access_token",
-              "value": "={{ $('Đọc DS Công Ty Hoạt Động').item.json.Access_Token }}"
+              "value": "={{ $('Lọc Bài Đến Giờ & Ghép Token').item.json.Access_Token }}"
             }
           ]
         },
@@ -351,17 +366,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://graph.facebook.com/v20.0/{{ $('Đọc DS Công Ty Hoạt Động').item.json.Page_ID }}/feed",
+        "url": "=https://graph.facebook.com/v20.0/{{ $('Lọc Bài Đến Giờ & Ghép Token').item.json.Page_ID }}/feed",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "message",
-              "value": "={{ $json.Content }}"
+              "value": "={{ $('Lọc Bài Đến Giờ & Ghép Token').item.json.Content }}"
             },
             {
               "name": "access_token",
-              "value": "={{ $('Đọc DS Công Ty Hoạt Động').item.json.Access_Token }}"
+              "value": "={{ $('Lọc Bài Đến Giờ & Ghép Token').item.json.Access_Token }}"
             }
           ]
         },
@@ -371,10 +386,23 @@
       "typeVersion": 4.2,
       "position": [
         1500,
-        720
+        740
       ],
       "id": "fb-post-text",
       "name": "Đăng Bài Chỉ Có Chữ (FB Graph API)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fbResp = $input.item.json || {};\nconst post = $('Lọc Bài Đến Giờ & Ghép Token').first().json || {};\n\nconst postId = fbResp.post_id || fbResp.id || '';\nconst liveUrl = postId ? `https://facebook.com/${postId}` : '';\n\nreturn {\n  json: {\n    Plan_ID: post.Plan_ID,\n    Sheet_Name: post.Sheet_Name,\n    post_id: postId,\n    live_post_url: liveUrl\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        640
+      ],
+      "id": "code-extract-fb-link",
+      "name": "Tổng Hợp Link Bài Facebook"
     },
     {
       "parameters": {
@@ -387,10 +415,10 @@
         "sheetName": {
           "__rl": true,
           "mode": "name",
-          "value": "={{ $('Đọc DS Công Ty Hoạt Động').item.json.Sheet_Name }}"
+          "value": "={{ $json.Sheet_Name }}"
         },
         "matchingColumn": "Plan_ID",
-        "matchingValue": "={{ $('Khóa Dòng (Đang xử lý)').item.json.Plan_ID }}",
+        "matchingValue": "={{ $json.Plan_ID }}",
         "fieldsUi": {
           "values": [
             {
@@ -399,28 +427,55 @@
             },
             {
               "column": "Live_Post_URL",
-              "fieldValue": "=https://facebook.com/{{ $json.post_id || $json.id }}"
+              "fieldValue": "={{ $json.live_post_url }}"
             }
           ]
         },
         "options": {}
       },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Google Sheets account",
+          "name": "Google Sheets account"
+        }
+      },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        1740,
-        620
+        1960,
+        640
       ],
       "id": "gsheet-update-published",
       "name": "Cập Nhật Google Sheet: Đã Đăng"
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://crm.tikovia.vn/api/automation/callback-published",
+        "method": "PATCH",
+        "url": "=https://prghikcgrgjsdowmnyzs.supabase.co/rest/v1/published_contents?plan_id=eq.{{ $json.Plan_ID }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "sb_publishable_fcRAaVPu4geHcW_d3v6tuA_opYL-49-"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer sb_publishable_fcRAaVPu4geHcW_d3v6tuA_opYL-49-"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"plan_id\": {{ $('Khóa Dòng (Đang xử lý)').item.json.Plan_ID }},\n  \"live_post_url\": \"https://facebook.com/{{ $json.post_id || $json.id }}\",\n  \"status\": \"published\"\n}",
+        "jsonBody": "={\n  \"link\": \"{{ $json.live_post_url }}\"\n}",
         "options": {
           "allowUnauthorizedCerts": true
         }
@@ -428,8 +483,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1980,
-        620
+        2200,
+        640
       ],
       "id": "crm-callback",
       "name": "Phản Hồi Link Về Tikovia CRM"
@@ -513,14 +568,14 @@
       "main": [
         [
           {
-            "node": "Đã Đến Giờ Hẹn?",
+            "node": "Lọc Bài Đến Giờ & Ghép Token",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Đã Đến Giờ Hẹn?": {
+    "Lọc Bài Đến Giờ & Ghép Token": {
       "main": [
         [
           {
@@ -564,7 +619,7 @@
       "main": [
         [
           {
-            "node": "Cập Nhật Google Sheet: Đã Đăng",
+            "node": "Tổng Hợp Link Bài Facebook",
             "type": "main",
             "index": 0
           }
@@ -572,6 +627,17 @@
       ]
     },
     "Đăng Bài Chỉ Có Chữ (FB Graph API)": {
+      "main": [
+        [
+          {
+            "node": "Tổng Hợp Link Bài Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tổng Hợp Link Bài Facebook": {
       "main": [
         [
           {
