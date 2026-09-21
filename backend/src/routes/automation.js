@@ -140,6 +140,17 @@ router.post('/trigger-approval', async (req, res) => {
       channel: channelInfo
     };
 
+    // CHỈ CÔNG TY ĐÃ LIÊN KẾT KÊNH FACEBOOK MỚI DÙNG LUỒNG N8N GOOGLE SHEETS
+    if (!isFacebookAutoPost) {
+      console.log(`[AutoPost] Công ty "${company?.name}" chưa gắn kết nối Fanpage Facebook. Bỏ qua gửi n8n Google Sheets.`);
+      return res.json({
+        success: true,
+        delivered_to_n8n: false,
+        message: 'Công ty chưa liên kết kênh Facebook, không gửi vào n8n Google Sheets',
+        payload
+      });
+    }
+
     const n8nWebhookUrl = process.env.N8N_CONTENT_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL;
     let n8nResponse = null;
 
