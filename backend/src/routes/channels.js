@@ -49,6 +49,7 @@ router.post('/connect', async (req, res) => {
       await supabase.from('channels').update({
          status: 'connected',
          page_id: appId,
+         access_token: pageAccessToken,
          auth_data: { appId, secretKey: pageAccessToken, syncCycle, storeMedia, page_token: pageAccessToken }
       }).eq('id', channelData.id);
 
