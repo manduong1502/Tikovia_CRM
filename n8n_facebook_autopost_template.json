@@ -228,7 +228,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Gộp thông tin công ty và chuẩn hóa thời gian hẹn + link ảnh\nconst companies = $('Lọc Cty Đang Hoạt Động').all().map(i => i.json);\nconst postItems = $input.all();\n\nconst results = [];\nconst now = Date.now();\n\nfor (let i = 0; i < postItems.length; i++) {\n  const item = postItems[i];\n  const post = item.json;\n\n  // 1. Chỉ lấy bài có Status = 'Chờ đăng'\n  if (String(post.Status || '').trim() !== 'Chờ đăng') {\n    continue;\n  }\n\n  // 2. Ghép công ty tương ứng\n  const companyIndex = item.pairedItem?.item;\n  const company = (companyIndex !== undefined ? companies[companyIndex] : null)\n    || companies.find(c => c.Sheet_Name === post.Sheet_Name)\n    || companies[0]\n    || {};\n\n  if (!company.Page_ID || !company.Access_Token) {\n    continue;\n  }\n\n  // 3. Kiểm tra thời gian hẹn (chuẩn hóa múi giờ Việt Nam +07:00)\n  const schedStr = String(post.Scheduled_Time || '').trim();\n  if (!schedStr) continue;\n\n  const isoStr = schedStr.includes('+') ? schedStr : (schedStr.replace(' ', 'T') + '+07:00');\n  const schedTime = new Date(isoStr).getTime();\n\n  // 4. Chỉ giữ bài đã đến hoặc qua giờ hẹn (schedTime <= now)\n  if (!isNaN(schedTime) && schedTime <= now) {\n    let media = String(post.Media_URLs || '').replace('FILE:', '').trim();\n    let photoUrl = media.split('\\n')[0].trim();\n\n    // Tự động chuyển link local uploads sang Supabase CDN để Facebook tải ảnh 100% thành công\n    if (photoUrl.includes('/uploads/')) {\n      const filename = photoUrl.split('/uploads/')[1].split('?')[0];\n      photoUrl = `https://prghikcgrgjsdowmnyzs.supabase.co/storage/v1/object/public/materials/${filename}`;\n    }\n\n    results.push({\n      json: {\n        ...post,\n        Company_Name: company.Company_Name || '',\n        Fanpage_Name: company.Fanpage_Name || '',\n        Page_ID: String(company.Page_ID || ''),\n        Access_Token: company.Access_Token || '',\n        Sheet_Name: company.Sheet_Name || 'Tikovia (Hệ thống)',\n        photo_url: photoUrl,\n        has_media: Boolean(photoUrl && photoUrl.startsWith('http')),\n        Status: 'Đang xử lý'\n      }\n    });\n  }\n}\n\nreturn results;"
+        "jsCode": "// Gộp thông tin công ty và chuẩn hóa thời gian hẹn + link ảnh/video\nconst companies = $('Lọc Cty Đang Hoạt Động').all().map(i => i.json);\nconst postItems = $input.all();\n\nconst results = [];\nconst now = Date.now();\n\nfor (let i = 0; i < postItems.length; i++) {\n  const item = postItems[i];\n  const post = item.json;\n\n  // 1. Chỉ lấy bài có Status = 'Chờ đăng'\n  if (String(post.Status || '').trim() !== 'Chờ đăng') {\n    continue;\n  }\n\n  // 2. Ghép công ty tương ứng\n  const companyIndex = item.pairedItem?.item;\n  const company = (companyIndex !== undefined ? companies[companyIndex] : null)\n    || companies.find(c => c.Sheet_Name === post.Sheet_Name)\n    || companies[0]\n    || {};\n\n  if (!company.Page_ID || !company.Access_Token) {\n    continue;\n  }\n\n  // 3. Kiểm tra thời gian hẹn (chuẩn hóa múi giờ Việt Nam +07:00)\n  const schedStr = String(post.Scheduled_Time || '').trim();\n  if (!schedStr) continue;\n\n  const isoStr = schedStr.includes('+') ? schedStr : (schedStr.replace(' ', 'T') + '+07:00');\n  const schedTime = new Date(isoStr).getTime();\n\n  // 4. Chỉ giữ bài đã đến hoặc qua giờ hẹn (schedTime <= now)\n  if (!isNaN(schedTime) && schedTime <= now) {\n    let media = String(post.Media_URLs || '').replace('FILE:', '').trim();\n    let mediaUrl = media.split('\\n')[0].trim();\n\n    // Tự động chuyển link local uploads sang Supabase CDN để Facebook tải 100% thành công\n    if (mediaUrl.includes('/uploads/')) {\n      const filename = mediaUrl.split('/uploads/')[1].split('?')[0];\n      mediaUrl = `https://prghikcgrgjsdowmnyzs.supabase.co/storage/v1/object/public/materials/${filename}`;\n    }\n\n    const isVideo = Boolean(mediaUrl && (/\\.(mp4|mov|webm|avi|mkv|wmv|flv)(\\?|$)/i.test(mediaUrl) || String(post.Title || '').toLowerCase().includes('video')));\n    const isImage = Boolean(mediaUrl && !isVideo && mediaUrl.startsWith('http'));\n\n    results.push({\n      json: {\n        ...post,\n        Company_Name: company.Company_Name || '',\n        Fanpage_Name: company.Fanpage_Name || '',\n        Page_ID: String(company.Page_ID || ''),\n        Access_Token: company.Access_Token || '',\n        Sheet_Name: company.Sheet_Name || 'Tikovia (Hệ thống)',\n        media_url: mediaUrl,\n        photo_url: mediaUrl,\n        video_url: mediaUrl,\n        media_type: isVideo ? 'video' : (isImage ? 'image' : 'text'),\n        has_media: Boolean(mediaUrl && mediaUrl.startsWith('http')),\n        Status: 'Đang xử lý'\n      }\n    });\n  }\n}\n\nreturn results;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -278,38 +278,6 @@
       ],
       "id": "lock-row",
       "name": "Khóa Dòng (Đang xử lý)"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "check-has-media",
-              "leftValue": "={{ $('Lọc Bài Đến Giờ & Ghép Token').item.json.has_media }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1420,
-        640
-      ],
-      "id": "if-has-media",
-      "name": "Có Ảnh / Video?"
     },
     {
       "parameters": {
@@ -477,6 +445,102 @@
       ],
       "id": "code-filter-active-companies",
       "name": "Lọc Cty Đang Hoạt Động"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{ $json.Page_ID }}/videos",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file_url",
+              "value": "={{ $json.media_url }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.Content }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.Access_Token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1640,
+        360
+      ],
+      "id": "fb-post-video",
+      "name": "Đăng Video (FB Graph API)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-is-video",
+              "leftValue": "={{ $json.media_type }}",
+              "rightValue": "video",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        640
+      ],
+      "id": "if-is-video",
+      "name": "Có Video?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-is-image",
+              "leftValue": "={{ $json.media_type }}",
+              "rightValue": "image",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        740
+      ],
+      "id": "if-is-image",
+      "name": "Có Ảnh?"
     }
   ],
   "connections": {
@@ -579,25 +643,7 @@
       "main": [
         [
           {
-            "node": "Có Ảnh / Video?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Có Ảnh / Video?": {
-      "main": [
-        [
-          {
-            "node": "Đăng Bài Kèm Ảnh (FB Graph API)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Đăng Bài Chỉ Có Chữ (FB Graph API)",
+            "node": "Có Video?",
             "type": "main",
             "index": 0
           }
@@ -653,6 +699,53 @@
         [
           {
             "node": "Đọc Bài Chờ Đăng Của Cty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Có Video?": {
+      "main": [
+        [
+          {
+            "node": "Đăng Video (FB Graph API)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Có Ảnh?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Có Ảnh?": {
+      "main": [
+        [
+          {
+            "node": "Đăng Bài Kèm Ảnh (FB Graph API)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Đăng Bài Chỉ Có Chữ (FB Graph API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đăng Video (FB Graph API)": {
+      "main": [
+        [
+          {
+            "node": "Tổng Hợp Link Bài Facebook",
             "type": "main",
             "index": 0
           }
