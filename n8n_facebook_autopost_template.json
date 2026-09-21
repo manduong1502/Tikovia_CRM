@@ -341,7 +341,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const fbResp = $input.item.json || {};\nconst post = $('Lọc Bài Đến Giờ & Ghép Token').first().json || {};\n\nconst postId = fbResp.post_id || fbResp.id || '';\nconst liveUrl = postId ? `https://facebook.com/${postId}` : '';\n\nreturn {\n  json: {\n    Plan_ID: String(post.Plan_ID || ''),\n    Sheet_Name: post.Sheet_Name || 'Tikovia (Hệ thống)',\n    Status: 'Đã đăng',\n    Live_Post_URL: liveUrl,\n    post_id: postId,\n    live_post_url: liveUrl\n  }\n};"
+        "jsCode": "const fbResp = $input.item.json || {};\nlet post = {};\ntry {\n  post = $('Lọc Bài Đến Giờ & Ghép Token').item.json;\n} catch (e) {\n  post = $('Lọc Bài Đến Giờ & Ghép Token').first().json || {};\n}\n\nconst postId = fbResp.id || fbResp.post_id || '';\nconst liveUrl = postId ? `https://facebook.com/${postId}` : '';\n\nreturn {\n  json: {\n    Plan_ID: String(post.Plan_ID || ''),\n    Sheet_Name: post.Sheet_Name || 'Tikovia (Hệ thống)',\n    Status: 'Đã đăng',\n    Live_Post_URL: liveUrl,\n    post_id: postId,\n    live_post_url: liveUrl\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
