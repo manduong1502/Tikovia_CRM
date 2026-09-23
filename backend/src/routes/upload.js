@@ -71,8 +71,11 @@ async function uploadToDrive(file) {
     console.warn('Set permission warning:', permErr.message);
   }
 
-  // Direct viewable URL for images and files
-  const directUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+  const isVideo = file.mimetype.startsWith('video/');
+  const baseUrl = process.env.BACKEND_URL || 'https://crm.tikovia.vn/api';
+  const directUrl = isVideo 
+    ? `${baseUrl.replace(/\/+$/, '')}/upload/drive-stream/${fileId}`
+    : `https://lh3.googleusercontent.com/d/${fileId}`;
 
   return {
     url: directUrl,
@@ -127,7 +130,7 @@ function saveToLocal(file) {
 
   fs.writeFileSync(filePath, file.buffer);
 
-  const baseUrl = process.env.BACKEND_URL || 'http://localhost:3001/api';
+  const baseUrl = process.env.BACKEND_URL || 'https://crm.tikovia.vn/api';
   const fileUrl = `${baseUrl.replace(/\/+$/, '')}/uploads/${filename}`;
 
   return {
@@ -139,7 +142,40 @@ function saveToLocal(file) {
   };
 }
 
-// Single file upload
+// Direct binary streaming endpoint for files stored in Google Drive (Video & Files)
+router.get('/drive-stream/:fileId', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    const drive = getDriveClient();
+    if (!drive) {
+      return res.status(500).json({ error: 'Google Drive client not configured' });
+    }
+
+    const meta = await drive.files.get({
+      fileId,
+      fields: 'name, mimeType, size'
+    });
+
+    res.setHeader('Content-Type', meta.data.mimeType || 'application/octet-stream');
+    if (meta.data.size) {
+      res.setHeader('Content-Length', meta.data.size);
+    }
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(meta.data.name)}"`);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    const fileStream = await drive.files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+
+    fileStream.data.pipe(res);
+  } catch (err) {
+    console.error('Drive stream error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Single file upload (Google Drive Primary -> Supabase -> Local disk)
 router.post('/single', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -147,25 +183,22 @@ router.post('/single', upload.single('file'), async (req, res) => {
     }
 
     try {
-      // 1. Try Supabase Storage first (High-speed CDN, 100% compatible with Facebook Graph API)
-      const supabaseResult = await uploadToSupabase(req.file);
-      console.log('✅ Uploaded to Supabase Storage (CDN):', supabaseResult.name);
-      return res.json({ success: true, ...supabaseResult });
-    } catch (supabaseErr) {
-      console.warn('Supabase upload failed, falling back to local disk:', supabaseErr.message);
+      // 1. Google Drive (Vĩnh viễn, 15GB, tài khoản tikovia.dn@gmail.com)
+      const driveResult = await uploadToDrive(req.file);
+      console.log('✅ Uploaded to Google Drive:', driveResult.name);
+      return res.json({ success: true, ...driveResult });
+    } catch (driveErr) {
+      console.warn('Google Drive upload failed, falling back to Supabase Storage:', driveErr.message);
       try {
-        // 2. Fallback to local server disk
+        // 2. Fallback to Supabase Storage
+        const supabaseResult = await uploadToSupabase(req.file);
+        console.log('✅ Uploaded to Supabase Storage (CDN):', supabaseResult.name);
+        return res.json({ success: true, ...supabaseResult });
+      } catch (supabaseErr) {
+        console.warn('Supabase upload failed, saving to local disk:', supabaseErr.message);
+        // 3. Fallback to local server disk
         const localResult = saveToLocal(req.file);
         return res.json({ success: true, ...localResult });
-      } catch (localErr) {
-        // 3. Fallback to Google Drive
-        try {
-          const driveResult = await uploadToDrive(req.file);
-          console.log('✅ Uploaded to Google Drive:', driveResult.name);
-          return res.json({ success: true, ...driveResult });
-        } catch (driveErr) {
-          throw new Error(`All upload targets failed: ${supabaseErr.message} | ${localErr.message} | ${driveErr.message}`);
-        }
       }
     }
   } catch (err) {
@@ -184,21 +217,17 @@ router.post('/multiple', upload.array('files', 20), async (req, res) => {
     const uploaded = [];
     for (const file of req.files) {
       try {
-        // 1. Supabase Storage first
-        const supabaseRes = await uploadToSupabase(file);
-        uploaded.push(supabaseRes);
-      } catch (sErr) {
-        console.warn('Supabase upload error, trying local:', sErr.message);
+        // 1. Google Drive first
+        const driveRes = await uploadToDrive(file);
+        uploaded.push(driveRes);
+      } catch (dErr) {
+        console.warn('Google Drive error on file, trying Supabase:', dErr.message);
         try {
+          const supabaseRes = await uploadToSupabase(file);
+          uploaded.push(supabaseRes);
+        } catch (sErr) {
           const localRes = saveToLocal(file);
           uploaded.push(localRes);
-        } catch (lErr) {
-          try {
-            const driveRes = await uploadToDrive(file);
-            uploaded.push(driveRes);
-          } catch (dErr) {
-            console.error('All targets failed for file:', file.originalname);
-          }
         }
       }
     }
