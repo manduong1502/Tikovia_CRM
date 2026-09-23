@@ -470,8 +470,13 @@ export function PublishedContent() {
     }
   };
 
+  const isVideoUrl = (url: string) => {
+    return url.match(/\.(mp4|mov|webm|avi|mkv|flv|wmv)($|\?)/i) != null;
+  };
+
   const isImageUrl = (url: string) => {
-    return url.match(/\.(jpeg|jpg|gif|png|webp)($|\?)/i) != null || url.includes('/storage/v1/object/public/materials') || url.includes('drive.google.com') || url.includes('/api/upload');
+    if (isVideoUrl(url)) return false;
+    return url.match(/\.(jpeg|jpg|gif|png|webp|svg)($|\?)/i) != null || url.includes('/storage/v1/object/public/materials') || url.includes('drive.google.com') || url.includes('/api/upload');
   };
 
   const renderMedia = (mediaText: string, item: any) => {
@@ -481,10 +486,20 @@ export function PublishedContent() {
         {mediaText.split('\n').map((line, idx) => {
           if (line.trim().startsWith('FILE:')) {
             const url = line.replace('FILE:', '').trim();
+            const isVid = isVideoUrl(url);
             const isImg = isImageUrl(url);
             return (
               <div key={idx} className="flex items-center gap-1.5 flex-wrap">
-                {isImg ? (
+                {isVid ? (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage(url)}
+                    className="flex items-center gap-1.5 px-2 py-1 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 rounded text-xs font-medium transition-colors cursor-pointer"
+                    title="Bấm để xem video"
+                  >
+                    <Video className="w-3 h-3 text-purple-600 dark:text-purple-400" /> Xem video
+                  </button>
+                ) : isImg ? (
                   <button
                     type="button"
                     onClick={() => setPreviewImage(url)}
@@ -495,7 +510,7 @@ export function PublishedContent() {
                   </button>
                 ) : (
                   <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium transition-colors w-max">
-                    <Paperclip className="w-3 h-3" /> File / Video
+                    <Paperclip className="w-3 h-3" /> File đính kèm
                   </a>
                 )}
                 <a href={url} target="_blank" rel="noreferrer" title="Mở link trực tiếp" className="p-1 text-gray-400 hover:text-brand-blue rounded transition-colors">
@@ -1140,21 +1155,30 @@ export function PublishedContent() {
               </div>
             </div>
             <div className="p-4 flex items-center justify-center overflow-auto max-h-[calc(90vh-100px)] bg-gray-950/5 dark:bg-black/30">
-              <img 
-                src={previewImage} 
-                alt="Ảnh bài viết" 
-                className="max-h-[75vh] w-auto object-contain rounded-lg shadow-sm"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                  const parent = (e.target as HTMLElement).parentElement;
-                  if (parent && !parent.querySelector('.error-box')) {
-                    const box = document.createElement('div');
-                    box.className = 'error-box text-center p-8 text-sm text-gray-500';
-                    box.innerHTML = '⚠️ Không thể tải ảnh trực tiếp từ link lưu trữ cũ của hệ thống trước đây.<br/><br/><a href="' + previewImage + '" target="_blank" class="text-brand-blue underline inline-flex items-center gap-1 font-medium">Bấm vào đây để thử mở trực tiếp link</a>';
-                    parent.appendChild(box);
-                  }
-                }}
-              />
+              {isVideoUrl(previewImage) ? (
+                <video 
+                  src={previewImage} 
+                  controls 
+                  autoPlay 
+                  className="max-h-[75vh] max-w-full rounded-lg shadow-sm"
+                />
+              ) : (
+                <img 
+                  src={previewImage} 
+                  alt="Ảnh bài viết" 
+                  className="max-h-[75vh] w-auto object-contain rounded-lg shadow-sm"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                    const parent = (e.target as HTMLElement).parentElement;
+                    if (parent && !parent.querySelector('.error-box')) {
+                      const box = document.createElement('div');
+                      box.className = 'error-box text-center p-8 text-sm text-gray-500';
+                      box.innerHTML = '⚠️ Không thể tải ảnh trực tiếp từ link lưu trữ cũ của hệ thống trước đây.<br/><br/><a href="' + previewImage + '" target="_blank" class="text-brand-blue underline inline-flex items-center gap-1 font-medium">Bấm vào đây để thử mở trực tiếp link</a>';
+                      parent.appendChild(box);
+                    }
+                  }}
+                />
+              )}
             </div>
           </div>
         </div>

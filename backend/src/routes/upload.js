@@ -147,22 +147,25 @@ router.post('/single', upload.single('file'), async (req, res) => {
     }
 
     try {
-      // 1. Try Google Drive first
-      const driveResult = await uploadToDrive(req.file);
-      console.log('✅ Uploaded to Google Drive:', driveResult.name);
-      return res.json({ success: true, ...driveResult });
-    } catch (driveErr) {
-      console.warn('Google Drive upload failed, trying Supabase Storage:', driveErr.message);
+      // 1. Try Supabase Storage first (High-speed CDN, 100% compatible with Facebook Graph API)
+      const supabaseResult = await uploadToSupabase(req.file);
+      console.log('✅ Uploaded to Supabase Storage (CDN):', supabaseResult.name);
+      return res.json({ success: true, ...supabaseResult });
+    } catch (supabaseErr) {
+      console.warn('Supabase upload failed, falling back to local disk:', supabaseErr.message);
       try {
-        // 2. Try Supabase Storage
-        const supabaseResult = await uploadToSupabase(req.file);
-        console.log('✅ Uploaded to Supabase Storage (CDN):', supabaseResult.name);
-        return res.json({ success: true, ...supabaseResult });
-      } catch (supabaseErr) {
-        console.warn('Supabase upload failed, saving to local disk:', supabaseErr.message);
-        // 3. Fallback to local disk
+        // 2. Fallback to local server disk
         const localResult = saveToLocal(req.file);
         return res.json({ success: true, ...localResult });
+      } catch (localErr) {
+        // 3. Fallback to Google Drive
+        try {
+          const driveResult = await uploadToDrive(req.file);
+          console.log('✅ Uploaded to Google Drive:', driveResult.name);
+          return res.json({ success: true, ...driveResult });
+        } catch (driveErr) {
+          throw new Error(`All upload targets failed: ${supabaseErr.message} | ${localErr.message} | ${driveErr.message}`);
+        }
       }
     }
   } catch (err) {
@@ -181,16 +184,21 @@ router.post('/multiple', upload.array('files', 20), async (req, res) => {
     const uploaded = [];
     for (const file of req.files) {
       try {
-        const driveRes = await uploadToDrive(file);
-        uploaded.push(driveRes);
-      } catch (e) {
+        // 1. Supabase Storage first
+        const supabaseRes = await uploadToSupabase(file);
+        uploaded.push(supabaseRes);
+      } catch (sErr) {
+        console.warn('Supabase upload error, trying local:', sErr.message);
         try {
-          const supabaseRes = await uploadToSupabase(file);
-          uploaded.push(supabaseRes);
-        } catch (sErr) {
-          console.warn('Drive & Supabase upload error on file, using local fallback:', sErr.message);
           const localRes = saveToLocal(file);
           uploaded.push(localRes);
+        } catch (lErr) {
+          try {
+            const driveRes = await uploadToDrive(file);
+            uploaded.push(driveRes);
+          } catch (dErr) {
+            console.error('All targets failed for file:', file.originalname);
+          }
         }
       }
     }
