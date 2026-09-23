@@ -112,7 +112,7 @@
     },
     {
       "parameters": {
-        "operation": "append",
+        "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
           "mode": "id",
@@ -126,7 +126,9 @@
         "columns": {
           "mappingMode": "autoMapInputData",
           "value": {},
-          "matchingColumns": [],
+          "matchingColumns": [
+            "Plan_ID"
+          ],
           "schema": []
         },
         "options": {}
@@ -144,7 +146,7 @@
         320
       ],
       "id": "gsheet-append-post-clean",
-      "name": "Lưu Bài Vào Sheet Riêng Của Cty"
+      "name": "Lưu / Cập Nhật Bài Vào Sheet Cty"
     },
     {
       "parameters": {
@@ -710,7 +712,7 @@
       "main": [
         [
           {
-            "node": "Lưu Bài Vào Sheet Riêng Của Cty",
+            "node": "Lưu / Cập Nhật Bài Vào Sheet Cty",
             "type": "main",
             "index": 0
           }
