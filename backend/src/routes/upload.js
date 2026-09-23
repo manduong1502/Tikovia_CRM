@@ -175,32 +175,29 @@ router.get('/drive-stream/:fileId', async (req, res) => {
   }
 });
 
-// Single file upload (Google Drive Primary -> Supabase -> Local disk)
+// Single file upload (Public CDN for Facebook + Permanent Google Drive Backup)
 router.post('/single', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // 1. Tải lên Supabase Storage (Public CDN chuẩn cho Facebook Graph API & Giao diện)
+    let cdnResult;
     try {
-      // 1. Google Drive (Vĩnh viễn, 15GB, tài khoản tikovia.dn@gmail.com)
-      const driveResult = await uploadToDrive(req.file);
-      console.log('✅ Uploaded to Google Drive:', driveResult.name);
-      return res.json({ success: true, ...driveResult });
-    } catch (driveErr) {
-      console.warn('Google Drive upload failed, falling back to Supabase Storage:', driveErr.message);
-      try {
-        // 2. Fallback to Supabase Storage
-        const supabaseResult = await uploadToSupabase(req.file);
-        console.log('✅ Uploaded to Supabase Storage (CDN):', supabaseResult.name);
-        return res.json({ success: true, ...supabaseResult });
-      } catch (supabaseErr) {
-        console.warn('Supabase upload failed, saving to local disk:', supabaseErr.message);
-        // 3. Fallback to local server disk
-        const localResult = saveToLocal(req.file);
-        return res.json({ success: true, ...localResult });
-      }
+      cdnResult = await uploadToSupabase(req.file);
+      console.log('✅ Uploaded to Supabase Storage (CDN):', cdnResult.name);
+    } catch (sErr) {
+      console.warn('Supabase upload error, saving to local disk:', sErr.message);
+      cdnResult = saveToLocal(req.file);
     }
+
+    // 2. Sao lưu vĩnh viễn vào Google Drive (tài khoản tikovia.dn@gmail.com)
+    uploadToDrive(req.file)
+      .then(dRes => console.log('✅ Sao lưu vĩnh viễn vào Google Drive thành công:', dRes.name))
+      .catch(dErr => console.warn('Google Drive backup warning:', dErr.message));
+
+    return res.json({ success: true, ...cdnResult });
   } catch (err) {
     console.error('Upload error:', err);
     res.status(500).json({ error: err.message });
@@ -216,20 +213,18 @@ router.post('/multiple', upload.array('files', 20), async (req, res) => {
 
     const uploaded = [];
     for (const file of req.files) {
+      let fileRes;
       try {
-        // 1. Google Drive first
-        const driveRes = await uploadToDrive(file);
-        uploaded.push(driveRes);
-      } catch (dErr) {
-        console.warn('Google Drive error on file, trying Supabase:', dErr.message);
-        try {
-          const supabaseRes = await uploadToSupabase(file);
-          uploaded.push(supabaseRes);
-        } catch (sErr) {
-          const localRes = saveToLocal(file);
-          uploaded.push(localRes);
-        }
+        fileRes = await uploadToSupabase(file);
+      } catch (sErr) {
+        fileRes = saveToLocal(file);
       }
+      uploaded.push(fileRes);
+
+      // Backup to Google Drive
+      uploadToDrive(file)
+        .then(dRes => console.log('✅ Sao lưu vào Google Drive:', dRes.name))
+        .catch(dErr => console.warn('Drive backup warning:', dErr.message));
     }
 
     res.json({ success: true, files: uploaded });
