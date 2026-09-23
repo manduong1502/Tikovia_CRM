@@ -175,27 +175,43 @@ router.get('/drive-stream/:fileId', async (req, res) => {
   }
 });
 
-// Single file upload (Public CDN for Facebook + Permanent Google Drive Backup)
+// Single file upload (Public CDN for Facebook + Guaranteed Google Drive Fallback)
 router.post('/single', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // 1. Tải lên Supabase Storage (Public CDN chuẩn cho Facebook Graph API & Giao diện)
+    // 1. Luôn sao lưu vào Google Drive vĩnh viễn (tài khoản tikovia.dn@gmail.com)
+    let driveResult = null;
+    try {
+      driveResult = await uploadToDrive(req.file);
+      console.log('✅ Đã lưu trữ an toàn trên Google Drive:', driveResult.name);
+    } catch (dErr) {
+      console.warn('Google Drive notice:', dErr.message);
+    }
+
+    // 2. Tải lên Supabase Storage (Public CDN)
     let cdnResult;
     try {
       cdnResult = await uploadToSupabase(req.file);
       console.log('✅ Uploaded to Supabase Storage (CDN):', cdnResult.name);
     } catch (sErr) {
-      console.warn('Supabase upload error, saving to local disk:', sErr.message);
-      cdnResult = saveToLocal(req.file);
+      console.warn('⚠️ Supabase Storage gặp sự cố (đầy bộ nhớ hoặc lỗi mạng):', sErr.message);
+      // NẾU SUPABASE HẾT DUNG LƯỢNG: Tự động chuyển 100% sang link Google Drive Stream
+      if (driveResult && driveResult.fileId) {
+        const baseUrl = process.env.BACKEND_URL || 'https://crm.tikovia.vn/api';
+        const streamUrl = `${baseUrl.replace(/\/+$/, '')}/upload/drive-stream/${driveResult.fileId}`;
+        console.log('🔄 ĐÃ CHUYỂN SANG DÙNG GOOGLE DRIVE STREAM CHO FACEBOOK:', streamUrl);
+        cdnResult = {
+          ...driveResult,
+          url: streamUrl
+        };
+      } else {
+        // Fallback cuối cùng sang đĩa cứng local cPanel
+        cdnResult = saveToLocal(req.file);
+      }
     }
-
-    // 2. Sao lưu vĩnh viễn vào Google Drive (tài khoản tikovia.dn@gmail.com)
-    uploadToDrive(req.file)
-      .then(dRes => console.log('✅ Sao lưu vĩnh viễn vào Google Drive thành công:', dRes.name))
-      .catch(dErr => console.warn('Google Drive backup warning:', dErr.message));
 
     return res.json({ success: true, ...cdnResult });
   } catch (err) {
@@ -213,18 +229,28 @@ router.post('/multiple', upload.array('files', 20), async (req, res) => {
 
     const uploaded = [];
     for (const file of req.files) {
+      let driveRes = null;
+      try {
+        driveRes = await uploadToDrive(file);
+      } catch (dErr) {
+        console.warn('Drive error on file:', dErr.message);
+      }
+
       let fileRes;
       try {
         fileRes = await uploadToSupabase(file);
       } catch (sErr) {
-        fileRes = saveToLocal(file);
+        if (driveRes && driveRes.fileId) {
+          const baseUrl = process.env.BACKEND_URL || 'https://crm.tikovia.vn/api';
+          fileRes = {
+            ...driveRes,
+            url: `${baseUrl.replace(/\/+$/, '')}/upload/drive-stream/${driveRes.fileId}`
+          };
+        } else {
+          fileRes = saveToLocal(file);
+        }
       }
       uploaded.push(fileRes);
-
-      // Backup to Google Drive
-      uploadToDrive(file)
-        .then(dRes => console.log('✅ Sao lưu vào Google Drive:', dRes.name))
-        .catch(dErr => console.warn('Drive backup warning:', dErr.message));
     }
 
     res.json({ success: true, files: uploaded });
