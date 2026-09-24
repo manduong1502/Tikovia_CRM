@@ -110,13 +110,28 @@ router.post('/zalo', async (req, res) => {
         if (!isAssigned) {
           const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
           if (n8nWebhookUrl) {
+            let sheetUrl = channelData.auth_data?.chatbot_sheet_url || '';
+            let companyName = '';
+            try {
+              const { data: comp } = await supabase.from('companies').select('name, ai_config').eq('id', channelData.company_id).maybeSingle();
+              if (comp) {
+                companyName = comp.name || '';
+                sheetUrl = sheetUrl || comp.ai_config?.chatbot_sheet_url || '';
+              }
+            } catch (cErr) {}
+
+            const sheetId = (sheetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || sheetUrl;
+
             axios.post(n8nWebhookUrl, {
               company_id: channelData.company_id,
+              company_name: companyName,
               channel_id: channelData.id,
               sender_id: payload.sender.id,
               sender_name: sender_name,
               message: payload.message.text,
-              source: 'zalo'
+              source: 'zalo',
+              chatbot_sheet_url: sheetUrl,
+              chatbot_sheet_id: sheetId
             }).catch(e => console.warn('N8N Forward Error (Zalo):', e.message));
           }
         }

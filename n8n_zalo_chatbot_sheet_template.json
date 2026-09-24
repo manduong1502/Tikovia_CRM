@@ -1,0 +1,166 @@
+{
+  "name": "Tikovia - Zalo OA Chatbot Tự Động Bằng Google Sheet",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zalo_on_message",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-zalo-in",
+      "name": "Nhận Tin Từ Tikovia CRM",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        340
+      ],
+      "webhookId": "zalo_on_message"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Nhận Tin Từ Tikovia CRM').item.json.body.chatbot_sheet_id || '1MNCVEhhaTcsORltLqq4t-ROSP_WpcYgo' }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Kich_Ban_Chatbot",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Google Sheets account",
+          "name": "Google Sheets account"
+        }
+      },
+      "id": "gsheet-read-scenarios",
+      "name": "Đọc Kịch Bản Từ Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy thông tin tin nhắn từ khách hàng\nconst inData = $('Nhận Tin Từ Tikovia CRM').first().json.body || {};\nconst userMsg = String(inData.message || '').toLowerCase().trim();\nconst senderName = inData.sender_name || 'bạn';\n\n// Lấy toàn bộ danh sách kịch bản từ Google Sheet\nconst scenarios = $input.all().map(i => i.json);\n\nlet matchedScenario = null;\nlet defaultScenario = null;\n\nfor (const sc of scenarios) {\n  const status = String(sc.Trang_Thai || sc.Status || '').trim().toLowerCase();\n  // Chỉ xét các kịch bản đang Bật\n  if (status !== 'bật' && status !== 'bat' && status !== 'active' && status !== 'on') {\n    continue;\n  }\n\n  const topic = String(sc.Chu_De || '').trim().toLowerCase();\n  if (topic === 'mac_dinh' || topic === 'mặc định' || topic === 'fallback') {\n    defaultScenario = sc;\n  }\n\n  const rawKeywords = String(sc.Tu_Khoa || sc.Keywords || '');\n  const keywords = rawKeywords.split('|').map(k => k.trim().toLowerCase()).filter(Boolean);\n\n  for (const kw of keywords) {\n    if (userMsg.includes(kw)) {\n      matchedScenario = sc;\n      break;\n    }\n  }\n\n  if (matchedScenario) break;\n}\n\n// Nếu không khớp từ khóa nào, dùng kịch bản Mặc định\nconst finalSc = matchedScenario || defaultScenario;\n\nlet replyText = '';\nlet replyImage = '';\n\nif (finalSc) {\n  replyText = String(finalSc.Cau_Tra_Loi || finalSc.Answer || '').replace(/{ten_khach}/g, senderName);\n  replyImage = String(finalSc.Link_Anh || finalSc.Image_URL || '').trim();\n} else {\n  replyText = `Dạ chào ${senderName}! Cảm ơn bạn đã nhắn tin cho Tikovia. Câu hỏi của bạn đã được ghi nhận và chuyên viên tư vấn sẽ phản hồi bạn trong ít phút nhé! (Hotline: 0702 536 927)`;\n}\n\nreturn {\n  json: {\n    company_id: inData.company_id,\n    channel_id: inData.channel_id,\n    sender_id: inData.sender_id,\n    source: 'zalo',\n    reply_text: replyText,\n    reply_image: replyImage,\n    matched_topic: finalSc?.Chu_De || 'Không khớp (Fallback)'\n  }\n};"
+      },
+      "id": "code-match-keywords",
+      "name": "Khớp Từ Khóa Kịch Bản",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.tikovia.vn/api/webhooks/send",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"company_id\": \"{{ $json.company_id }}\",\n  \"channel_id\": \"{{ $json.channel_id }}\",\n  \"sender_id\": \"{{ $json.sender_id }}\",\n  \"source\": \"zalo\",\n  \"save_to_db\": true,\n  \"staff_name\": \"AI Bot (Google Sheet)\",\n  \"message\": \"{{ $json.reply_text }}\",\n  \"attachment_url\": \"{{ $json.reply_image }}\"\n}",
+        "options": {}
+      },
+      "id": "http-reply-zalo-crm",
+      "name": "Phản Hồi Zalo Qua Tikovia CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## BƯỚC 1: Nhận tin nhắn từ Zalo OA\nCRM Tikovia bắt webhook từ Zalo OA và chuyển tiếp sang n8n kèm:\n- `message`: Câu khách nhắn\n- `sender_name`: Tên Zalo của khách\n- `chatbot_sheet_id`: ID file Google Sheet của công ty",
+        "height": 260,
+        "width": 300,
+        "color": 2
+      },
+      "id": "note-step-1",
+      "name": "Sticky Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## BƯỚC 2: Đọc Google Sheet kịch bản\nĐọc bảng `Kich_Ban_Chatbot` gồm các cột:\n- `Chu_De`\n- `Tu_Khoa` (ngăn cách bằng `|`)\n- `Cau_Tra_Loi`\n- `Link_Anh`\n- `Trang_Thai` (Bật / Tắt)",
+        "height": 260,
+        "width": 320,
+        "color": 4
+      },
+      "id": "note-step-2",
+      "name": "Sticky Note 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        460,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## BƯỚC 3 & 4: Khớp & Phản hồi Zalo\n- So khớp từ khóa với câu hỏi của khách hàng.\n- Tự động thay `{ten_khach}` bằng tên Zalo của khách.\n- Gửi tin nhắn text + ảnh trực tiếp vào Zalo OA của khách và đồng bộ lên giao diện chat của CRM!",
+        "height": 260,
+        "width": 460,
+        "color": 6
+      },
+      "id": "note-step-3",
+      "name": "Sticky Note 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        740,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Nhận Tin Từ Tikovia CRM": {
+      "main": [
+        [
+          {
+            "node": "Đọc Kịch Bản Từ Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Đọc Kịch Bản Từ Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Khớp Từ Khóa Kịch Bản",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Khớp Từ Khóa Kịch Bản": {
+      "main": [
+        [
+          {
+            "node": "Phản Hồi Zalo Qua Tikovia CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

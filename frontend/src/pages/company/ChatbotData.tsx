@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Database, Upload, Save, File, X, FileText, Image as ImageIcon, CheckCircle2, Loader2, Download } from 'lucide-react';
+import { Database, Upload, Save, File, X, FileText, Image as ImageIcon, CheckCircle2, Loader2, Download, Table, ExternalLink } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { supabase } from '../../lib/supabase';
@@ -11,6 +11,7 @@ export function ChatbotData() {
   const [existingFiles, setExistingFiles] = useState<any[]>([]);
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [note, setNote] = useState('');
+  const [sheetUrl, setSheetUrl] = useState('');
   
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -25,13 +26,14 @@ export function ChatbotData() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('companies').select('chatbot_notes, chatbot_files').eq('id', companyId).single();
+      const { data, error } = await supabase.from('companies').select('chatbot_notes, chatbot_files, ai_config').eq('id', companyId).single();
       if (error && error.code !== 'PGRST116') {
         console.error(error);
       }
       if (data) {
         setNote(data.chatbot_notes || '');
         setExistingFiles(data.chatbot_files || []);
+        setSheetUrl(data.ai_config?.chatbot_sheet_url || '');
       }
     } catch (err) {
       console.log('Lỗi fetch chatbot data:', err);
@@ -73,10 +75,19 @@ export function ChatbotData() {
       
       const finalFilesList = [...existingFiles, ...newlyUploaded];
       
+      // Get existing ai_config to merge
+      const { data: compData } = await supabase.from('companies').select('ai_config').eq('id', companyId).single();
+      const currentAiConfig = compData?.ai_config || {};
+      const updatedAiConfig = {
+        ...currentAiConfig,
+        chatbot_sheet_url: sheetUrl.trim()
+      };
+
       // Update the companies table
       const { error: updateError } = await supabase.from('companies').update({
         chatbot_notes: note,
-        chatbot_files: finalFilesList
+        chatbot_files: finalFilesList,
+        ai_config: updatedAiConfig
       }).eq('id', companyId);
       
       if (updateError) {
@@ -209,9 +220,64 @@ export function ChatbotData() {
             )}
           </div>
 
+          {/* GOOGLE SHEETS SCENARIO SECTION */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[15px] font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Table className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                2. Kịch bản Chatbot tự động (Google Sheet)
+              </label>
+              <span className="text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 font-semibold px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                Khuyên dùng cho Zalo OA & Fanpage
+              </span>
+            </div>
+            <p className="text-[13px] text-gray-500 mb-3">
+              Dán liên kết Google Sheet chứa danh sách từ khóa và câu trả lời. Chatbot sẽ tự động đối soát kịch bản và phản hồi tin nhắn khách hàng trong 1 giây mà không tốn phí Token AI.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <input 
+                  type="url"
+                  value={sheetUrl}
+                  onChange={e => {
+                    setSheetUrl(e.target.value);
+                    setShowSuccess(false);
+                  }}
+                  className="w-full text-[14px] bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl px-4 py-3 focus:border-emerald-500 focus:ring-0 text-gray-900 dark:text-white placeholder-gray-400 transition-colors font-mono outline-none"
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit..."
+                />
+              </div>
+
+              {/* Sheet Template Hint */}
+              <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs space-y-2">
+                <div className="flex items-center justify-between font-bold text-emerald-800 dark:text-emerald-300">
+                  <span className="flex items-center gap-1.5">
+                    💡 Hướng dẫn cấu trúc Google Sheet kịch bản:
+                  </span>
+                  <span className="font-normal text-[11px] text-emerald-600 dark:text-emerald-400 bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-emerald-200">
+                    Tên Sheet: <b className="font-mono">Kich_Ban_Chatbot</b>
+                  </span>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400">
+                  File bảng tính cần có 6 cột tiêu đề ở hàng đầu tiên:
+                </p>
+                <div className="font-mono text-emerald-900 dark:text-emerald-300 bg-white/90 dark:bg-gray-900/80 p-2 rounded-lg border border-emerald-200 dark:border-emerald-800 font-semibold overflow-x-auto">
+                  STT | Chu_De | Tu_Khoa | Cau_Tra_Loi | Link_Anh | Trang_Thai
+                </div>
+                <div className="text-gray-500 dark:text-gray-400 text-[11px] flex flex-col gap-1 pt-1">
+                  <span>• Cột <b>Tu_Khoa</b>: Các từ khóa cách nhau bằng dấu gạch đứng <code className="text-emerald-600">|</code> (Ví dụ: <code className="bg-white dark:bg-gray-800 px-1 py-0.5 rounded border">chào|hi|hello</code> hoặc <code className="bg-white dark:bg-gray-800 px-1 py-0.5 rounded border">giá|bao nhiêu|báo giá</code>).</span>
+                  <span>• Cột <b>Cau_Tra_Loi</b>: Hỗ trợ biến <code className="text-emerald-600">{'{ten_khach}'}</code> để xưng hô đích danh khách hàng.</span>
+                  <span>• Cột <b>Trang_Thai</b>: Điền <b>Bật</b> để áp dụng câu trả lời này.</span>
+                  <span>• Quyền truy cập: Cài đặt chia sẻ Google Sheet là <b>"Bất kỳ ai có liên kết đều có thể xem" (Viewer)</b>.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* NOTE SECTION */}
           <div>
-            <label className="block text-[15px] font-bold text-gray-900 dark:text-white mb-3">2. Ghi chú dặn dò Chatbot (Prompt)</label>
+            <label className="block text-[15px] font-bold text-gray-900 dark:text-white mb-3">3. Ghi chú dặn dò Chatbot (Prompt bổ sung)</label>
             <p className="text-[13px] text-gray-500 mb-3">Nhập các lưu ý hoặc thông tin chỉ đạo cách AI trả lời khách hàng (Ví dụ: Miễn phí xịp ship nội thành Hà Nội, Thái độ nhiệt tình thân thiện...)</p>
             <textarea 
               rows={5}
