@@ -97,11 +97,14 @@ router.post('/zalo', async (req, res) => {
         // ==========================================
         // WEBHOOK GATEWAY -> N8N
         // ==========================================
+        // Chỉ chặn Bot nếu nhân viên được gán trực tiếp gần đây (trong vòng 15 phút)
+        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
         const { data: latestMsgs } = await supabase.from('messages')
           .select('assigned_staff_name')
           .eq('company_id', channelData.company_id)
           .eq('sender_id', payload.sender.id)
-          .not('assigned_staff_name', 'is', null) // Check if ever assigned
+          .not('assigned_staff_name', 'is', null)
+          .gte('created_at', fifteenMinutesAgo)
           .order('created_at', { ascending: false })
           .limit(1);
 
